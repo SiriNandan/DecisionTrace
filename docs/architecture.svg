@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1120" width="1700" height="1120" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0f766e"/></marker>
+<marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#b45309"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="40" y="52" font-size="28" font-weight="800" fill="#0f172a">DecisionTrace: how decisions come in, are kept safe, and are explained</text>
+<text x="40" y="80" font-size="15" fill="#475569">Every lender sees only its own data. Each decision is a tamper-evident record; an AI model only ever helps where the lender and the customer allow it.</text>
+<text x="40" y="125" font-size="13" font-weight="800" fill="#64748b" letter-spacing="1.5">WHO USES IT</text>
+<text x="380" y="125" font-size="13" font-weight="800" fill="#64748b" letter-spacing="1.5">SCREENS</text>
+<text x="760" y="125" font-size="13" font-weight="800" fill="#64748b" letter-spacing="1.5">SERVICE (FastAPI)</text>
+<text x="1290" y="125" font-size="13" font-weight="800" fill="#64748b" letter-spacing="1.5">STORAGE AND OUTSIDE SERVICES</text>
+<rect x="40" y="140" width="290" height="104" rx="12" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.6"/>
+<text x="54" y="166" font-size="16" font-weight="700" fill="#0f172a">Lender decision engine</text>
+<text x="54" y="190" font-size="13.5" fill="#334155">Sends decisions as an API call,</text>
+<text x="54" y="209" font-size="13.5" fill="#334155">or a CSV / JSON file in any layout</text>
+<rect x="40" y="262" width="290" height="104" rx="12" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.6"/>
+<text x="54" y="288" font-size="16" font-weight="700" fill="#0f172a">Lender staff</text>
+<text x="54" y="312" font-size="13.5" fill="#334155">Data engineer, analyst, administrator</text>
+<text x="54" y="331" font-size="13.5" fill="#334155">Sign in with an access key</text>
+<rect x="40" y="384" width="290" height="86" rx="12" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.6"/>
+<text x="54" y="410" font-size="16" font-weight="700" fill="#0f172a">Auditor</text>
+<text x="54" y="434" font-size="13.5" fill="#334155">Reads, checks and verifies;</text>
+<text x="54" y="453" font-size="13.5" fill="#334155">cannot change anything</text>
+<rect x="40" y="488" width="290" height="104" rx="12" fill="#ecfdf5" stroke="#86efac" stroke-width="1.6"/>
+<text x="54" y="514" font-size="16" font-weight="700" fill="#0f172a">Customer</text>
+<text x="54" y="538" font-size="13.5" fill="#334155">Opens only their own decision</text>
+<text x="54" y="557" font-size="13.5" fill="#334155">through a link from the lender</text>
+<rect x="380" y="140" width="330" height="452" rx="12" fill="#fff" stroke="#cbd5e1" stroke-width="1.6"/>
+<text x="394" y="166" font-size="16" font-weight="700" fill="#0f172a">Clearly (React) behind nginx</text>
+<text x="394" y="190" font-size="13.5" fill="#334155">Sign in  (key, customer link, samples)</text>
+<text x="394" y="209" font-size="13.5" fill="#334155">Decisions and the explanation page</text>
+<text x="394" y="228" font-size="13.5" fill="#334155">   what, why, evidence, corrections, seal</text>
+<text x="394" y="247" font-size="13.5" fill="#334155">Your choices  (AI summary on / off)</text>
+<text x="394" y="266" font-size="13.5" fill="#334155">Request a review</text>
+<text x="394" y="285" font-size="13.5" fill="#334155"></text>
+<text x="394" y="304" font-size="13.5" fill="#334155">Staff only:</text>
+<text x="394" y="323" font-size="13.5" fill="#334155">Connect your data  (match columns)</text>
+<text x="394" y="342" font-size="13.5" fill="#334155">Data checks  (fix, never overwrite)</text>
+<text x="394" y="361" font-size="13.5" fill="#334155">Risk signals  (prompts, not verdicts)</text>
+<text x="394" y="380" font-size="13.5" fill="#334155">Record seals  (seal, check)</text>
+<text x="394" y="399" font-size="13.5" fill="#334155">Customer link maker</text>
+<text x="394" y="418" font-size="13.5" fill="#334155"></text>
+<text x="394" y="437" font-size="13.5" fill="#334155">nginx passes /api to the service and</text>
+<text x="394" y="456" font-size="13.5" fill="#334155">adds no credentials</text>
+<rect x="760" y="140" width="490" height="640" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="774" y="166" font-size="16" font-weight="700" fill="#0f172a">Decision API and explanation service</text>
+<rect x="780" y="176" width="450" height="86" rx="12" fill="#fefce8" stroke="#fde047" stroke-width="1.6"/>
+<text x="794" y="202" font-size="15" font-weight="700" fill="#0f172a">1  Sign-in, roles, one lender at a time</text>
+<text x="794" y="226" font-size="13.5" fill="#334155">Staff keys and customer links; every request</text>
+<text x="794" y="245" font-size="13.5" fill="#334155">is limited to its lender (row-level security)</text>
+<rect x="780" y="272" width="450" height="100" rx="12" fill="#fff" stroke="#cbd5e1" stroke-width="1.6"/>
+<text x="794" y="298" font-size="15" font-weight="700" fill="#0f172a">2  Ingest and AI mapping assistant</text>
+<text x="794" y="322" font-size="13.5" fill="#334155">File or API in; AI proposes how columns match;</text>
+<text x="794" y="341" font-size="13.5" fill="#334155">a person approves; fixed rules do the import</text>
+<rect x="780" y="382" width="450" height="100" rx="12" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.6"/>
+<text x="794" y="408" font-size="15" font-weight="700" fill="#0f172a">3  The record: one hash chain per decision</text>
+<text x="794" y="432" font-size="13.5" fill="#334155">Evidence, lender reasons, corrections (appended,</text>
+<text x="794" y="451" font-size="13.5" fill="#334155">never overwritten). Optional encryption per lender</text>
+<rect x="780" y="492" width="450" height="84" rx="12" fill="#fff" stroke="#cbd5e1" stroke-width="1.6"/>
+<text x="794" y="518" font-size="15" font-weight="700" fill="#0f172a">4  Data checks and risk signals</text>
+<text x="794" y="542" font-size="13.5" fill="#334155">Missing / unlikely / conflicting values;</text>
+<text x="794" y="561" font-size="13.5" fill="#334155">repeat applicants, guessing, shifts in outcomes</text>
+<rect x="780" y="586" width="450" height="84" rx="12" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.6"/>
+<text x="794" y="612" font-size="15" font-weight="700" fill="#0f172a">5  Seals: Merkle tree, signed</text>
+<text x="794" y="636" font-size="13.5" fill="#334155">Fingerprints sealed in batches; proofs anyone</text>
+<text x="794" y="655" font-size="13.5" fill="#334155">can check; changes after sealing are reported</text>
+<rect x="780" y="680" width="450" height="88" rx="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.6"/>
+<text x="794" y="706" font-size="15" font-weight="700" fill="#0f172a">6  Explanation and customer choices</text>
+<text x="794" y="730" font-size="13.5" fill="#334155">Built from the saved record by fixed steps.</text>
+<text x="794" y="749" font-size="13.5" fill="#334155">An AI summary only if policy and customer allow</text>
+<rect x="1290" y="140" width="370" height="330" rx="12" fill="#fff" stroke="#94a3b8" stroke-width="1.6"/>
+<text x="1304" y="166" font-size="16" font-weight="700" fill="#0f172a">PostgreSQL (the lender's data)</text>
+<text x="1304" y="190" font-size="13.5" fill="#334155">Decisions and evidence (hash-chained)</text>
+<text x="1304" y="209" font-size="13.5" fill="#334155">Corrections  ·  data checks  ·  signals</text>
+<text x="1304" y="228" font-size="13.5" fill="#334155">Mappings and who approved them</text>
+<text x="1304" y="247" font-size="13.5" fill="#334155">Seals and batches  ·  customer choices</text>
+<text x="1304" y="266" font-size="13.5" fill="#334155">Customer links (hashed)  ·  access log</text>
+<text x="1304" y="285" font-size="13.5" fill="#334155">Wrapped data keys  ·  erasure records</text>
+<text x="1304" y="304" font-size="13.5" fill="#334155"></text>
+<text x="1304" y="323" font-size="13.5" fill="#334155">The service connects as a role that can</text>
+<text x="1304" y="342" font-size="13.5" fill="#334155">add rows but not change or delete them,</text>
+<text x="1304" y="361" font-size="13.5" fill="#334155">and sees one lender's rows at a time</text>
+<rect x="1290" y="490" width="370" height="92" rx="12" fill="#fff" stroke="#cbd5e1" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="1304" y="516" font-size="16" font-weight="700" fill="#0f172a">Key service</text>
+<text x="1304" y="540" font-size="13.5" fill="#334155">Local master secret today.</text>
+<text x="1304" y="559" font-size="13.5" fill="#334155">A cloud or hardware key service is the next step</text>
+<rect x="1290" y="600" width="370" height="92" rx="12" fill="#fff" stroke="#0f766e" stroke-width="1.6"/>
+<text x="1304" y="626" font-size="16" font-weight="700" fill="#0f172a">Outside copy of the seals</text>
+<text x="1304" y="650" font-size="13.5" fill="#334155">Storage the database administrator can't rewrite</text>
+<text x="1304" y="669" font-size="13.5" fill="#334155">(a directory today; timestamp service is next)</text>
+<rect x="1290" y="710" width="370" height="70" rx="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.6"/>
+<text x="1304" y="736" font-size="16" font-weight="700" fill="#0f172a">AI model (optional, Gemini)</text>
+<text x="1304" y="760" font-size="13.5" fill="#334155">Gets only the explanation's own facts,</text>
+<text x="1304" y="779" font-size="13.5" fill="#334155">never names or contact details</text>
+
+<path d="M330 314 L380 314" fill="none" stroke="#475569" stroke-width="2.2" marker-end="url(#ar)"/>
+<path d="M330 427 L380 427" fill="none" stroke="#475569" stroke-width="2.2" marker-end="url(#ar)"/>
+<path d="M330 540 L380 540" fill="none" stroke="#16a34a" stroke-width="2.2" marker-end="url(#ar)"/>
+<path d="M710 346 L778 346" fill="none" stroke="#475569" stroke-width="2.2" marker-end="url(#ar)"/>
+<text x="744" y="336" font-size="12.5" fill="#475569" text-anchor="middle" font-weight="600">HTTPS /api</text>
+<path d="M1230 310 L1290 310" fill="none" stroke="#475569" stroke-width="2.2" marker-end="url(#ar)"/>
+<path d="M1230 430 L1290 430" fill="none" stroke="#475569" stroke-width="2.2" marker-end="url(#ar)"/>
+<path d="M1230 620 L1290 646" fill="none" stroke="#0f766e" stroke-width="2.2" marker-end="url(#ag)"/>
+<text x="1262" y="588" font-size="12.5" fill="#0f766e" text-anchor="middle" font-weight="600">signed heads</text>
+<path d="M1230 720 L1290 740" fill="none" stroke="#b45309" stroke-width="2.2" marker-end="url(#ao)" stroke-dasharray="6 5"/>
+<text x="1262" y="706" font-size="12.5" fill="#b45309" text-anchor="middle" font-weight="600">if allowed</text>
+<path d="M1290 530 L1230 450" fill="none" stroke="#64748b" stroke-width="2.2" marker-end="url(#ar)" stroke-dasharray="6 5"/>
+<text x="1400" y="484" font-size="12.5" fill="#64748b" text-anchor="middle" font-weight="600">keys</text>
+
+
+<path d="M185 140 L185 98 L735 98 L735 284 L778 284" fill="none" stroke="#4f46e5" stroke-width="2.2" marker-end="url(#ar)"/>
+<text x="560" y="93" font-size="12.5" fill="#4f46e5" font-weight="600" text-anchor="middle">decisions go straight to the service: an API call or an uploaded file</text>
+<rect x="40" y="820" width="1620" height="260" rx="14" fill="#fff" stroke="#cbd5e1" stroke-width="1.6"/>
+<text x="60" y="852" font-size="17" font-weight="800" fill="#0f172a">The flow, in order</text>
+<circle cx="74" cy="884" r="14" fill="#0f766e"/><text x="74" y="889" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">1</text>
+<text x="96" y="890" font-size="15" font-weight="700" fill="#0f172a">Bring data in</text>
+<text x="60" y="918" font-size="13" fill="#334155">A bank sends a decision, or uploads a</text>
+<text x="60" y="937" font-size="13" fill="#334155">file in its own layout. The AI suggests</text>
+<text x="60" y="956" font-size="13" fill="#334155">how the columns match; a person checks</text>
+<text x="60" y="975" font-size="13" fill="#334155">and approves; nothing is saved before</text>
+<text x="60" y="994" font-size="13" fill="#334155">that.</text>
+
+<circle cx="344" cy="884" r="14" fill="#0f766e"/><text x="344" y="889" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">2</text>
+<text x="366" y="890" font-size="15" font-weight="700" fill="#0f172a">Save it as a record</text>
+<text x="330" y="918" font-size="13" fill="#334155">Each decision and its evidence go into a</text>
+<text x="330" y="937" font-size="13" fill="#334155">hash chain. If the lender turned on</text>
+<text x="330" y="956" font-size="13" fill="#334155">protection, the evidence is encrypted</text>
+<text x="330" y="975" font-size="13" fill="#334155">under a key for that decision.</text>
+
+<circle cx="614" cy="884" r="14" fill="#0f766e"/><text x="614" y="889" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">3</text>
+<text x="636" y="890" font-size="15" font-weight="700" fill="#0f172a">Check it</text>
+<text x="600" y="918" font-size="13" fill="#334155">Data checks find missing or unlikely</text>
+<text x="600" y="937" font-size="13" fill="#334155">values and propose fixes as appended</text>
+<text x="600" y="956" font-size="13" fill="#334155">corrections. Risk signals point at</text>
+<text x="600" y="975" font-size="13" fill="#334155">patterns for a person to look at.</text>
+
+<circle cx="884" cy="884" r="14" fill="#0f766e"/><text x="884" y="889" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">4</text>
+<text x="906" y="890" font-size="15" font-weight="700" fill="#0f172a">Seal it</text>
+<text x="870" y="918" font-size="13" fill="#334155">New records are fingerprinted, sealed in</text>
+<text x="870" y="937" font-size="13" fill="#334155">a signed batch and copied outside the</text>
+<text x="870" y="956" font-size="13" fill="#334155">database. Later changes show up when</text>
+<text x="870" y="975" font-size="13" fill="#334155">seals are checked.</text>
+
+<circle cx="1154" cy="884" r="14" fill="#0f766e"/><text x="1154" y="889" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">5</text>
+<text x="1176" y="890" font-size="15" font-weight="700" fill="#0f172a">Explain it</text>
+<text x="1140" y="918" font-size="13" fill="#334155">The explanation is built from the saved</text>
+<text x="1140" y="937" font-size="13" fill="#334155">record by fixed steps. An AI summary is</text>
+<text x="1140" y="956" font-size="13" fill="#334155">added only if the lender allows it and</text>
+<text x="1140" y="975" font-size="13" fill="#334155">the customer hasn't said no.</text>
+
+<circle cx="1424" cy="884" r="14" fill="#0f766e"/><text x="1424" y="889" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">6</text>
+<text x="1446" y="890" font-size="15" font-weight="700" fill="#0f172a">Show it</text>
+<text x="1410" y="918" font-size="13" fill="#334155">Customers see their own decision, what</text>
+<text x="1410" y="937" font-size="13" fill="#334155">was corrected, whether it is sealed and</text>
+<text x="1410" y="956" font-size="13" fill="#334155">their choices. Staff see signals and</text>
+<text x="1410" y="975" font-size="13" fill="#334155">tools. Erasing destroys the key; the</text>
+<text x="1410" y="994" font-size="13" fill="#334155">record still verifies.</text>
+<text x="60" y="1066" font-size="12.5" fill="#64748b">Dashed box or arrow: optional, or planned but not built yet.  Green: the tamper-evident record and its seals.  Orange: AI help, only where allowed.  Demonstration build: all people and decisions are fictional.</text>
+</svg>

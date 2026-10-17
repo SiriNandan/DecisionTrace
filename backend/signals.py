@@ -30,6 +30,97 @@ ENUMERATION_MIN = 10
 BULK_MIN = 200
 
 
+def signal_facts(kind: str, details: dict[str, Any]) -> dict[str, Any] | None:
+    """The signal's own stored facts plus the fixed rule thresholds; the only numbers an explanation may use."""
+    d = details or {}
+    try:
+        if kind == "applicant_velocity":
+            return {"decisions_in_window": int(d["count"]), "window_days": VELOCITY_DAYS, "rule_minimum": VELOCITY_MIN}
+        if kind == "outcome_flip":
+            return {"window_days": FLIP_DAYS}
+        if kind == "shared_details":
+            return {"distinct_customer_references": int(d["distinct_references"]), "rule_minimum": SHARED_MIN_SUBJECTS}
+        if kind == "decline_rate_shift":
+            return {"recent_decline_rate": d["recent_rate"], "baseline_decline_rate": d["baseline_rate"],
+                    "recent_decisions": int(d["recent_n"]), "baseline_decisions": int(d["baseline_n"])}
+        if kind == "score_shift":
+            return {"recent_average_score": d["recent_mean"], "baseline_average_score": d["baseline_mean"]}
+        if kind == "id_enumeration":
+            return {"missing_lookups": int(d["not_found"]), "window_minutes": ENUMERATION_WINDOW_MIN, "rule_minimum": ENUMERATION_MIN}
+        if kind == "bulk_reading":
+            return {"decisions_opened": int(d["distinct"]), "window_minutes": ENUMERATION_WINDOW_MIN, "rule_minimum": BULK_MIN}
+    except (KeyError, TypeError, ValueError):
+        return None
+    return None
+
+
+def why_template(kind: str, details: dict[str, Any]) -> str | None:
+    """Deterministic one-sentence 'why this fired', built only from the signal's stored facts. Default when no model is used."""
+    f = signal_facts(kind, details)
+    if f is None:
+        return None
+    if kind == "applicant_velocity":
+        return (f"This rule fired because the same customer reference has {f['decisions_in_window']} decisions within "
+                f"{f['window_days']} days, and it looks for {f['rule_minimum']} or more.")
+    if kind == "outcome_flip":
+        return f"This rule fired because a decline was followed by an approval for the same customer reference within {f['window_days']} days."
+    if kind == "shared_details":
+        return (f"This rule fired because the same income, loan amount and credit score appear for {f['distinct_customer_references']} "
+                f"different customer references, and it looks for {f['rule_minimum']} or more.")
+    if kind == "decline_rate_shift":
+        return (f"This rule fired because the share of declines is {f['recent_decline_rate']:.0%} over {f['recent_decisions']} recent decisions, "
+                f"against {f['baseline_decline_rate']:.0%} over {f['baseline_decisions']} earlier ones.")
+    if kind == "score_shift":
+        return (f"This rule fired because risk scores average {f['recent_average_score']:.2f} in the latest week, "
+                f"against {f['baseline_average_score']:.2f} before.")
+    if kind == "id_enumeration":
+        return (f"This rule fired because {f['missing_lookups']} lookups for decisions that don't exist happened within "
+                f"{f['window_minutes']} minutes, and it looks for {f['rule_minimum']} or more.")
+    return (f"This rule fired because {f['decisions_opened']} different decisions were opened within "
+            f"{f['window_minutes']} minutes, and it looks for {f['rule_minimum']} or more.")
+
+
+def _fact_numbers(value: Any, out: set[float]) -> set[float]:
+    if isinstance(value, dict):
+        for v in value.values():
+            _fact_numbers(v, out)
+    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+        out.add(float(value))
+    return out
+
+
+def grounded_why(text: str | None, facts: dict[str, Any]) -> str | None:
+    """Keep a model-written sentence only if it is one short sentence whose every number is in the signal's facts."""
+    from recon_agent.guardrails import _extract_numbers_from_text, _number_matches_set  # same grounding rule as the report summary
+
+    if not text:
+        return None
+    text = " ".join(text.split())
+    if not text or len(text) > 300 or text.count(". ") or text[-1] not in ".!":
+        return None
+    allowed = _fact_numbers(facts, set())
+    return text if all(_number_matches_set(n, allowed) for n in _extract_numbers_from_text(text)) else None
+
+
+def _ai_why(conn: psycopg.Connection[Any], backend: Any, sig: dict[str, Any]) -> str | None:
+    """Model-written sentence for one decision-level signal, or None. Never for protected decisions or without consent."""
+    from backend.consent import state  # deferred: only needed when a model is configured
+
+    did = sig["decision_id"]
+    facts = signal_facts(sig["signal_type"], sig["details"])
+    if sig["scope"] != "decision" or not did or facts is None:
+        return None
+    row = conn.execute("SELECT encrypted FROM decisions WHERE decision_id = %s", (did,)).fetchone()
+    if row is None or row[0] or not state(conn, did)["ai_summary_on"]:
+        return None
+    if conn.execute("SELECT 1 FROM risk_signals WHERE signal_type = %s AND dedupe_key = %s", (sig["signal_type"], sig["dedupe_key"])).fetchone():
+        return None  # already on file; don't ask again on every re-run
+    try:
+        return grounded_why(backend.generate_signal_why(sig["signal_type"], facts), facts)
+    except Exception:
+        return None  # the rule's own sentence stands on its own
+
+
 def _sig(decision_id: str | None, scope: str, kind: str, severity: str, message: str, key: str, **details: Any) -> dict[str, Any]:
     return {"decision_id": decision_id, "scope": scope, "signal_type": kind, "severity": severity,
             "message": message, "dedupe_key": key, "details": details}
@@ -194,6 +285,17 @@ def flag_enumeration(conn: psycopg.Connection[Any], tenant_id: str, credential_i
     ).rowcount)
 
 
+def _llm_backend() -> Any:
+    """The configured model backend, or None when it is the offline one (the deterministic sentence is used)."""
+    from recon_agent.backends import get_llm_backend
+
+    try:
+        backend = get_llm_backend()
+    except Exception:
+        return None
+    return None if getattr(backend, "backend_name", "fake") == "fake" else backend
+
+
 def scan_signals(
     conn: psycopg.Connection[Any],
     tenant_id: str,
@@ -214,6 +316,11 @@ def scan_signals(
     found += drift_signals(views, now)
     if include_access and decision_ids is None:
         found += access_signals(conn, tenant_id, given_now)
+    backend = _llm_backend()
+    for f in found:
+        why = _ai_why(conn, backend, f) if backend is not None else None
+        if why:
+            f["details"] = {**f["details"], "why_ai": why}
     saved = 0
     for f in found:
         saved += conn.execute(
@@ -229,9 +336,18 @@ def scan_signals(
 SIGNAL_COLS = "signal_id, decision_id, scope, signal_type, severity, message, details, created_at"
 
 
-def signal_row(r: tuple[Any, ...], status: str) -> dict[str, Any]:
+def signal_row(r: tuple[Any, ...], status: str, conn: psycopg.Connection[Any] | None = None) -> dict[str, Any]:
+    """`why` is the rule's own sentence; a model-written one is shown only if a connection is given to confirm consent still holds."""
+    from backend.consent import state
+
+    details = dict(r[6] or {})
+    ai = details.pop("why_ai", None)
+    why = {"text": why_template(r[3], details), "source": "rule"}
+    if ai and conn is not None and r[1] and state(conn, str(r[1]))["ai_summary_on"]:
+        why = {"text": ai, "source": "ai"}
     return {"signal_id": int(r[0]), "decision_id": str(r[1]) if r[1] else None, "scope": r[2], "signal_type": r[3],
-            "severity": r[4], "message": r[5], "details": r[6], "created_at": r[7].isoformat(), "status": status}
+            "severity": r[4], "message": r[5], "details": details, "created_at": r[7].isoformat(), "status": status,
+            "why": why if why["text"] else None}
 
 
 def signals_for_decision(conn: psycopg.Connection[Any], tenant_id: str, decision_id: str) -> list[dict[str, Any]]:
@@ -240,4 +356,4 @@ def signals_for_decision(conn: psycopg.Connection[Any], tenant_id: str, decision
         "ORDER BY review_id DESC LIMIT 1), 'open') FROM risk_signals s WHERE s.tenant_id = %s AND s.decision_id = %s "
         "ORDER BY signal_id", (tenant_id, decision_id),
     ).fetchall()
-    return [signal_row(r[:8], str(r[8])) for r in rows]
+    return [signal_row(r[:8], str(r[8]), conn) for r in rows]

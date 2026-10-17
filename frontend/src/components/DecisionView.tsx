@@ -549,12 +549,25 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
                   <small>{completeness === 100 ? "Nothing is missing." : "Some items were removed or are missing."}</small></div>
               </li>
             </ul>
-            {report && (
-              <p className="cl-fine" data-testid="guardrail-line">
-                Every statement in the explanation was checked against the evidence
-                {report.guardrail_rejections > 0 ? `; ${report.guardrail_rejections} unsupported ${report.guardrail_rejections === 1 ? "statement was" : "statements were"} left out.` : "."}
-              </p>
-            )}
+            {report && (() => {
+              const kept = report.reasons.reduce((n, r) => n + r.claims.length, 0);
+              const removed = report.guardrail_rejections;
+              const why = [...new Set(report.guardrail_removed ?? [])];
+              return (
+                <section className="cl-check" aria-labelledby="cl-check-h" data-testid="guardrail-line">
+                  <h3 id="cl-check-h" className="cl-h3">Checked against the record</h3>
+                  <p className="cl-fine">
+                    {kept} {kept === 1 ? "claim" : "claims"} kept, {removed} removed because {removed === 1 ? "it was" : "they were"} not in the preserved evidence.
+                  </p>
+                  {removed > 0 && why.length > 0 && (
+                    <details className="cl-details">
+                      <summary>Why {removed === 1 ? "it was" : "they were"} removed</summary>
+                      <ul className="cl-fine">{why.map((w) => <li key={w}>{w}</li>)}</ul>
+                    </details>
+                  )}
+                </section>
+              );
+            })()}
           </div>
 
           <div className="cl-card-rail">

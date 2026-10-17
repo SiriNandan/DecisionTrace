@@ -508,3 +508,118 @@ def test_two_people_reviewing_the_same_signal_cannot_both_win(client: TestClient
         conn.commit()
         with pytest.raises(psycopg.errors.UniqueViolation):
             conn.execute("INSERT INTO signal_reviews (signal_id, tenant_id, action, note, reviewer_role) VALUES (%s, %s, 'cleared', 'second', 'x')", (sid, t["tenant_id"]))
+
+
+# ---------- plain-language "why this fired" ----------
+
+class _WhyModel:
+    """Stands in for a real model: records every ask and answers with a fixed sentence."""
+
+    def __init__(self, text: str) -> None:
+        self.text, self.asked = text, []
+
+    def generate_signal_why(self, kind: str, facts: dict[str, Any]) -> str:
+        self.asked.append((kind, facts))
+        return self.text
+
+
+GOOD_WHY = "This customer reference has 3 decisions within 7 days, so it is worth a look."
+
+
+def _repeat_applicant(client: TestClient, t: dict[str, Any], tag: str) -> list[str]:
+    return [post(client, t, envelope(f"{tag}-{i}", subject=f"s-{tag}", when=f"2026-08-{10 + i:02d}T10:00:00+00:00")) for i in range(3)]
+
+
+def _fresh_lender(policy: str, encrypt: bool = False) -> dict[str, Any]:
+    with psycopg.connect(os.environ["DB_URL"], connect_timeout=5) as conn:
+        t = provision_tenants(conn, 1, prefix=f"why-{uuid.uuid4().hex[:5]}", encrypt=encrypt)[0]
+        conn.execute("UPDATE tenants SET ai_summary_policy = %s WHERE tenant_id = %s", (policy, t["tenant_id"]))
+    return t
+
+
+def _velocity(client: TestClient, t: dict[str, Any]) -> dict[str, Any]:
+    found = client.get("/v1/signals", headers=h(t["keys"]["auditor"])).json()
+    return next(s for s in found if s["signal_type"] == "applicant_velocity")
+
+
+def test_every_signal_gets_a_template_sentence_built_only_from_its_own_facts() -> None:
+    from backend.signals import signal_facts, why_template
+
+    assert why_template("applicant_velocity", {"count": 4}) == (
+        "This rule fired because the same customer reference has 4 decisions within 7 days, and it looks for 3 or more.")
+    assert "30 days" in why_template("outcome_flip", {})
+    assert "5 different customer references" in why_template("shared_details", {"distinct_references": 5})
+    assert "50%" in why_template("decline_rate_shift", {"recent_rate": 0.5, "baseline_rate": 0.2, "recent_n": 40, "baseline_n": 90})
+    assert "0.61" in why_template("score_shift", {"recent_mean": 0.61, "baseline_mean": 0.4})
+    assert "12 lookups" in why_template("id_enumeration", {"not_found": 12})
+    assert "300 different decisions" in why_template("bulk_reading", {"distinct": 300})
+    assert why_template("applicant_velocity", {}) is None and why_template("something_new", {"count": 1}) is None  # missing facts: no sentence, no guess
+    assert signal_facts("applicant_velocity", {"count": 4})["rule_minimum"] == 3
+
+
+def test_a_model_sentence_is_kept_only_if_one_short_sentence_with_numbers_from_the_facts() -> None:
+    from backend.signals import grounded_why, signal_facts
+
+    facts = signal_facts("applicant_velocity", {"count": 3})
+    assert grounded_why(GOOD_WHY, facts) == GOOD_WHY
+    assert grounded_why("This customer reference has 9 decisions within 7 days.", facts) is None  # invented number
+    assert grounded_why("It happened 3 times. It is certainly fraud.", facts) is None  # not one sentence
+    assert grounded_why("x" * 400 + ".", facts) is None and grounded_why("", facts) is None and grounded_why(None, facts) is None
+
+
+def test_the_offline_backend_gives_the_template_and_labels_it_as_a_rule(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_BACKEND", "fake")
+    t = _fresh_lender("allow")
+    _repeat_applicant(client, t, "fk")
+    client.post("/v1/signals/run", json={}, headers=h(t["keys"]["lender_analyst"]))
+    sig = _velocity(client, t)
+    assert sig["why"] == {"text": "This rule fired because the same customer reference has 3 decisions within 7 days, and it looks for 3 or more.",
+                          "source": "rule"}
+    assert "why_ai" not in sig["details"]
+
+
+def test_a_grounded_model_sentence_is_used_once_and_stops_the_moment_consent_is_withdrawn(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import backend.signals as signals
+
+    model = _WhyModel(GOOD_WHY)
+    monkeypatch.setattr(signals, "_llm_backend", lambda: model)
+    t = _fresh_lender("allow")
+    _repeat_applicant(client, t, "ai")
+    run = lambda: client.post("/v1/signals/run", json={}, headers=h(t["keys"]["lender_analyst"]))  # noqa: E731
+    run()
+    assert _velocity(client, t)["why"] == {"text": GOOD_WHY, "source": "ai"}
+    assert model.asked and model.asked[0][1] == {"decisions_in_window": 3, "window_days": 7, "rule_minimum": 3}
+    asked = len(model.asked)
+    run()
+    assert len(model.asked) == asked  # signals already on file are not sent again
+
+    with psycopg.connect(os.environ["DB_URL"], connect_timeout=5) as conn:
+        conn.execute("UPDATE tenants SET ai_summary_policy = 'never' WHERE tenant_id = %s", (t["tenant_id"],))
+    after = _velocity(client, t)
+    assert after["why"]["source"] == "rule" and GOOD_WHY not in json.dumps(after)
+
+
+def test_a_model_sentence_with_an_invented_number_is_dropped_for_the_template(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import backend.signals as signals
+
+    model = _WhyModel("This customer reference has 9 decisions within 7 days.")
+    monkeypatch.setattr(signals, "_llm_backend", lambda: model)
+    t = _fresh_lender("allow")
+    _repeat_applicant(client, t, "bad")
+    client.post("/v1/signals/run", json={}, headers=h(t["keys"]["lender_analyst"]))
+    assert model.asked  # it was asked, and its answer was refused
+    sig = _velocity(client, t)
+    assert sig["why"]["source"] == "rule" and "9" not in sig["why"]["text"]
+
+
+@pytest.mark.parametrize("policy,encrypt", [("never", False), ("ask", False), ("allow", True)])
+def test_no_model_is_asked_without_consent_or_for_protected_decisions(client: TestClient, monkeypatch: pytest.MonkeyPatch, policy: str, encrypt: bool) -> None:
+    import backend.signals as signals
+
+    model = _WhyModel(GOOD_WHY)
+    monkeypatch.setattr(signals, "_llm_backend", lambda: model)
+    t = _fresh_lender(policy, encrypt)
+    _repeat_applicant(client, t, "no")
+    client.post("/v1/signals/run", json={}, headers=h(t["keys"]["lender_analyst"]))
+    assert model.asked == []
+    assert _velocity(client, t)["why"]["source"] == "rule"

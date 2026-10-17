@@ -101,30 +101,53 @@ def evaluate_claim_grounding(
     }
 
 
+REASON_NOT_IN_RECORD = "It pointed to evidence that is not in the preserved record."
+REASON_ERASED = "It relied on evidence that has since been removed."
+REASON_VALUE_MISMATCH = "The value it stated did not match the preserved evidence."
+REASON_NUMBER = "It contained a figure that does not appear in the preserved evidence."
+REASON_SUMMARY = "The written summary used a source or figure that is not in the preserved evidence."
+
+
+def rejection_reason(eval_res: dict[str, Any], session: ToolSession) -> str | None:
+    """Plain-language reason a claim failed grounding, or None if it passed. Never echoes claim content."""
+    if not eval_res["citation_valid"]:
+        return REASON_ERASED if eval_res["citation"] in session.erased_ids else REASON_NOT_IN_RECORD
+    if not eval_res["claim_supported"]:
+        return REASON_VALUE_MISMATCH
+    if not eval_res["numerical_accurate"]:
+        return REASON_NUMBER
+    return None
+
+
+def apply_claim_guardrails_detailed(
+    raw_reasons: list[dict[str, Any]],
+    session: ToolSession,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Filter out unsupported claims; return the kept reasons and one plain-language reason per removed claim."""
+    kept_reasons: list[dict[str, Any]] = []
+    removed: list[str] = []
+
+    for reason_group in raw_reasons:
+        kept_claims: list[dict[str, Any]] = []
+        for claim in reason_group.get("claims", []):
+            why = rejection_reason(evaluate_claim_grounding(claim, session), session)
+            if why is None:
+                kept_claims.append(claim)
+            else:
+                removed.append(why)
+        if kept_claims:
+            kept_reasons.append({"claims": kept_claims})
+
+    return kept_reasons, removed
+
+
 def apply_claim_guardrails(
     raw_reasons: list[dict[str, Any]],
     session: ToolSession,
 ) -> tuple[list[dict[str, Any]], int]:
     """Filter out unsupported claims using ToolSession state and count guardrail rejections."""
-    kept_reasons: list[dict[str, Any]] = []
-    rejected_count = 0
-
-    for reason_group in raw_reasons:
-        kept_claims: list[dict[str, Any]] = []
-        for claim in reason_group.get("claims", []):
-            eval_res = evaluate_claim_grounding(claim, session)
-            if (
-                eval_res["citation_valid"]
-                and eval_res["claim_supported"]
-                and eval_res["numerical_accurate"]
-            ):
-                kept_claims.append(claim)
-            else:
-                rejected_count += 1
-        if kept_claims:
-            kept_reasons.append({"claims": kept_claims})
-
-    return kept_reasons, rejected_count
+    kept_reasons, removed = apply_claim_guardrails_detailed(raw_reasons, session)
+    return kept_reasons, len(removed)
 
 
 _CITATION_RE = re.compile(r"\[([A-Za-z_]+:[^\]\s]+)\]")

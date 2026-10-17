@@ -57,6 +57,7 @@ export interface ReconstructionReportContract {
   recording_mode?: "scored" | "recorded";
   corrections?: Array<{ field: string; old_value: unknown; new_value: unknown; corrected_at: string; reason: string }>;
   guardrail_rejections: number;
+  guardrail_removed?: string[];
   status: ReconstructionStatus;
 }
 
@@ -275,6 +276,7 @@ export interface SignalItem {
   severity: "info" | "warning" | "high";
   message: string;
   details: Record<string, unknown>;
+  why?: { text: string; source: "rule" | "ai" } | null;
   created_at: string;
   status: "open" | "acknowledged" | "cleared";
 }

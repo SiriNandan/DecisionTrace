@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from backend.consent import ai_summary_allowed
 from backend.contract import ReconstructionReport, ReconstructionStatus
 from recon_agent.backends import FakeLLMBackend, LLMBackend, get_llm_backend
-from recon_agent.guardrails import apply_claim_guardrails, check_narrative
+from recon_agent.guardrails import REASON_SUMMARY, apply_claim_guardrails_detailed, check_narrative
 from recon_agent.recorded import build_recorded_report, correction_notes
 from recon_agent.tools import (
     DEFAULT_MAX_TOOL_CALLS,
@@ -251,13 +251,14 @@ def reconstruct_decision(
             # Runtime grounding guardrail: drop claims whose citation, field/value, or numbers
             # are not backed by tool results returned in this session.
             raw_report = dict(raw_report)
-            kept_reasons, rejected = apply_claim_guardrails(
+            kept_reasons, removed = apply_claim_guardrails_detailed(
                 list(raw_report.get("reasons") or []), session
             )
             raw_report["reasons"] = kept_reasons
             raw_report["guardrail_rejections"] = int(
                 raw_report.get("guardrail_rejections") or 0
-            ) + rejected
+            ) + len(removed)
+            raw_report["guardrail_removed"] = list(raw_report.get("guardrail_removed") or []) + removed
 
             # Optional LLM plain-language summary; kept only if it passes the same grounding checks.
             if kept_reasons and raw_report.get("status", "ok") == "ok" and ai_summary_allowed(decision_id, resolved_db_url):
@@ -270,6 +271,7 @@ def reconstruct_decision(
                         raw_report["plain_language_summary"] = summary
                     else:
                         raw_report["guardrail_rejections"] += 1
+                        raw_report["guardrail_removed"].append(REASON_SUMMARY)
 
             raw_report["corrections"] = _correction_notes(decision_id, resolved_db_url)
             validated = ReconstructionReport.model_validate(raw_report)

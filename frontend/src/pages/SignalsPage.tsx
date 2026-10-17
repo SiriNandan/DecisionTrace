@@ -25,6 +25,10 @@ const SignalCard: React.FC<{ s: SignalItem; onDone: () => void; onError: (m: str
         <span className="cl-muted">{WHERE[s.scope]}</span>
       </div>
       <p className="cl-finding-msg">{s.message}</p>
+      <p className="cl-fine" data-testid={`why-${s.signal_id}`}>
+        <strong>Signal rule (heuristic)</strong>
+        {s.why?.text && <> · {s.why.text}{s.why.source === "ai" && " Worded by AI from the figures in this rule only, and checked against them."}</>}
+      </p>
       {s.decision_id && <p className="cl-muted"><Link to={{ page: "decision", id: s.decision_id }}>Open the decision</Link></p>}
       {s.status === "open" && (
         <div className="cl-finding-actions">

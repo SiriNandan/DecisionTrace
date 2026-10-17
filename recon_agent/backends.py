@@ -375,6 +375,10 @@ class LLMBackend(ABC):
         """
         return None
 
+    def generate_signal_why(self, kind: str, facts: dict[str, Any]) -> str | None:
+        """Optionally write one plain sentence on why a rule-based signal fired; None = use the rule's own sentence."""
+        return None
+
 
 class FakeLLMBackend(LLMBackend):
     """Deterministic scripted backend executing preserved-snapshot tools for tests and offline use."""
@@ -701,6 +705,26 @@ class GeminiAPIBackend(LLMBackend):
             config=types.GenerateContentConfig(temperature=0.0),
         )
         return (resp.text or "").strip() or None
+
+
+    def generate_signal_why(self, kind: str, facts: dict[str, Any]) -> str | None:
+        if not self.api_key:
+            return None
+        client = genai.Client(api_key=self.api_key)
+        resp = self._generate_content_with_fallback(
+            client=client,
+            contents=[types.Content(role="user", parts=[types.Part.from_text(
+                text=SIGNAL_WHY_PROMPT + "\n\n" + json.dumps({"rule": kind, "facts": facts}, default=str))])],
+            config=types.GenerateContentConfig(temperature=0.0),
+        )
+        return (resp.text or "").strip() or None
+
+
+SIGNAL_WHY_PROMPT = """Write ONE short plain-language sentence saying why a rule-based risk signal fired.
+Use ONLY the rule name and facts in the JSON below. Rules:
+- Write each number exactly as it appears in the JSON and do not introduce any other numbers.
+- Do not say or imply fraud, guilt or a conclusion; this is a pattern for a person to look at.
+Return the sentence only."""
 
 
 SUMMARY_PROMPT = """Write a plain-language explanation (3-5 sentences) of a loan decision for an auditor or applicant.

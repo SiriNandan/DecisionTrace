@@ -2,6 +2,11 @@
 
 All changes to `backend/contract.py` (`ReconstructionReport`, `RuleCheck`, `Reason`, `Claim`, `Override`) require a dated entry in this file.
 
+## [1.3.0] - 2026-10-18
+
+### Added
+- `ReconstructionReport.guardrail_removed` (`list[str]`, default empty): one plain-language reason per claim or summary removed by the runtime guardrail (for example "It relied on evidence that has since been removed."). It never contains the removed text, so no unverified or erased content leaks through it. `guardrail_rejections` is unchanged and still equals the number removed. Backward compatible.
+
 ## [1.2.0] - 2026-10-17
 
 ### Added

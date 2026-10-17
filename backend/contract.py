@@ -299,6 +299,10 @@ class ReconstructionReport(BaseModel):
         ge=0,
         description="Count of candidate explanation claims rejected by citation/number guardrails",
     )
+    guardrail_removed: list[str] = Field(
+        default_factory=list,
+        description="Plain-language reason for each removed claim or summary (never the removed text itself)",
+    )
     status: ReconstructionStatus = Field(
         ...,
         description="Reconstruction execution status ('ok', 'timeout', 'error', or 'evidence_unavailable')",

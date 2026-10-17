@@ -304,3 +304,4 @@ h1:focus { outline: none; }
 .cl-flags { padding-left: 18px; margin: 6px 0; display: grid; gap: 6px; }
 .cl-h4 { font-size: 14px; margin: 14px 0 4px; color: var(--ink-2); }
 @media (max-width: 760px) { .cl-who-name { max-width: 84px; font-size: 12px; } }
+.cl-check { margin-top: 12px; overflow-wrap: anywhere; } .cl-check .cl-fine { margin-top: 4px; } .cl-check ul { padding-left: 18px; margin: 6px 0 0; }

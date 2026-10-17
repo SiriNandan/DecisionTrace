@@ -83,3 +83,28 @@ describe("Risk signals", () => {
     await waitFor(() => expect(screen.getAllByTestId("service-problem")[0]).toHaveAttribute("data-kind", "signin"));
   });
 });
+
+describe("why a signal fired", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    signOut();
+    process.env.VITE_USE_MOCKS = "false";
+    process.env.VITE_API_KEY = "k";
+    globalThis.__DECISIONTRACE_ENV__ = { VITE_API_URL: "http://api.test", VITE_USE_MOCKS: "false" };
+  });
+  afterEach(() => { (globalThis as unknown as { fetch: unknown }).fetch = realFetch; delete process.env.VITE_API_KEY; globalThis.__DECISIONTRACE_ENV__ = undefined; });
+
+  test("each signal is labelled as a heuristic rule, with the rule's sentence or the AI-worded one marked as such", async () => {
+    const rule = { ...SIGNAL, why: { text: "This rule fired because the same customer reference has 3 decisions within 7 days, and it looks for 3 or more.", source: "rule" as const } };
+    const ai = { ...SIGNAL, signal_id: 11, why: { text: "This customer reference has 3 decisions within 7 days, so it is worth a look.", source: "ai" as const } };
+    install([rule, ai, ACCESS]);  // ACCESS has no sentence at all (an older record)
+    const { container } = render(<SignalsPage />);
+    const a = await screen.findByTestId("signal-9");
+    expect(within(a).getByTestId("why-9")).toHaveTextContent("Signal rule (heuristic) · This rule fired because");
+    expect(within(a).getByTestId("why-9")).not.toHaveTextContent("Worded by AI");
+    expect(screen.getByTestId("why-11")).toHaveTextContent("Worded by AI from the figures in this rule only, and checked against them.");
+    expect(screen.getByTestId("why-10")).toHaveTextContent(/^Signal rule \(heuristic\)$/);
+    expect(document.body.textContent).toMatch(/prompts to look,\s+not conclusions/);
+    expect(await axe(container, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
+  });
+});

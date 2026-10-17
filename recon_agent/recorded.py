@@ -13,7 +13,7 @@ import psycopg
 from backend.consent import ai_summary_allowed
 from backend.contract import ReconstructionReport
 from backend.quality import load_corrections
-from recon_agent.guardrails import check_narrative
+from recon_agent.guardrails import REASON_SUMMARY, check_narrative
 from recon_agent.tools import ToolSession, _extract_numbers
 
 NO_REASONS = "The lender's system recorded this outcome without giving reasons."
@@ -44,6 +44,7 @@ def _attach_summary(report: dict[str, Any], payload: dict[str, Any], ref: str, b
         report["plain_language_summary"] = summary
     else:
         report["guardrail_rejections"] += 1
+        report.setdefault("guardrail_removed", []).append(REASON_SUMMARY)
 
 
 def build_recorded_report(decision_id: str, db_url: str, backend: Any = None) -> ReconstructionReport:

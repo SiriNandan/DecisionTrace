@@ -52,7 +52,7 @@ def list_signals(
             "ORDER BY CASE severity WHEN 'high' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, signal_id DESC LIMIT %s",
             (principal.tenant_id, status, status, limit),
         ).fetchall()
-    return [signal_row(r[:8], str(r[8])) for r in rows]
+        return [signal_row(r[:8], str(r[8]), conn) for r in rows]
 
 
 @router.post("/v1/signals/{signal_id}/review")

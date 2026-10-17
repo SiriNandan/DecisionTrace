@@ -11,6 +11,7 @@ Verifies:
 from __future__ import annotations
 
 import os
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
@@ -318,6 +319,9 @@ def test_plain_language_summary_is_guardrailed(
     """LLM summaries are attached only if every number and [citation] is grounded in tool results."""
     _, seeded_by_name = seeded_scenarios
     decision_id = seeded_by_name["clear_approve"]["decision_id"]
+    with psycopg.connect(os.environ["DB_URL"]) as conn:  # the demo lender allows AI summaries; by default a customer's yes is needed
+        conn.execute("UPDATE tenants SET ai_summary_policy = 'allow' WHERE tenant_id = 'demo'")
+        conn.commit()
 
     def backend_with(summary_fn):
         class SummaryBackend(FakeLLMBackend):

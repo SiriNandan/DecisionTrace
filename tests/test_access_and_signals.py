@@ -113,7 +113,7 @@ def test_unexpected_errors_are_plain_and_keep_cors_headers(monkeypatch: pytest.M
 
     app_module = importlib.import_module("decision_api.app")  # the package also exports an object named `app`
 
-    monkeypatch.setattr(app_module, "list_decisions", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom with secrets")))
+    monkeypatch.setattr(app_module, "list_decisions_page", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom with secrets")))
     r = TestClient(create_app(), raise_server_exceptions=False).get(
         "/decisions", headers={**h(os.environ["DT_API_KEY"]), "Origin": "http://localhost:5173"})
     assert r.status_code == 500 and "secrets" not in r.text and r.json()["code"] == "server_error"
@@ -131,7 +131,7 @@ def test_a_customer_link_opens_one_decision_and_nothing_else(client: TestClient,
     assert link["path"] == f"?d={dec}&t={tok}" and len(tok) > 30
 
     me = client.get("/v1/me", headers=c(tok)).json()
-    assert me["kind"] == "customer" and me["decision_id"] == dec and me["scopes"] == ["decisions:read", "reconstruct", "review:request"]
+    assert me["kind"] == "customer" and me["decision_id"] == dec and me["scopes"] == ["consent:write", "decisions:read", "reconstruct", "review:request"]
     assert [d["decision_id"] for d in client.get("/decisions", headers=c(tok)).json()] == [dec]
     rec = client.get(f"/decisions/{dec}", headers=c(tok)).json()
     assert rec["chain_valid"] is True and "signals" not in rec

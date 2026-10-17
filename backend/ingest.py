@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 import psycopg
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from backend.integrity import build_chain
+from backend.integrity import build_chain, canonical_json, payload_sha256
 
 SCHEMA_VERSION = 1
 MAX_PAYLOAD_BYTES = 64 * 1024
@@ -36,6 +36,13 @@ class EvidenceItem(BaseModel):
     source_id: str = Field(..., min_length=1, max_length=100)
     source_timestamp: datetime
     payload: dict[str, Any]
+
+    @field_validator("payload")
+    @classmethod
+    def _no_reserved_keys(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if "_enc" in value:
+            raise ValueError("The name '_enc' is reserved and can't be used in evidence.")
+        return value
 
 
 class SourceMapping(BaseModel):
@@ -119,6 +126,31 @@ def _chain_items(env: DecisionEnvelopeV1, decided_at: datetime, captured_at: dat
     return items
 
 
+def _same_content(conn: psycopg.Connection[Any], decision_id: str, stored_protected: bool,
+                  plain_items: list[dict[str, Any]], new_snapshots: list[dict[str, Any]]) -> bool:
+    """Is a replayed request exactly what was recorded? For protected records the stored fingerprints are salted, so
+    compare the content itself, which needs the key (a record whose content was removed can't be matched)."""
+    from backend.crypto import Reveal, is_encrypted
+
+    rows = conn.execute(
+        "SELECT evidence_ref, payload, payload_sha256 FROM decision_snapshots WHERE decision_id = %s ORDER BY seq", (decision_id,)
+    ).fetchall()
+    if len(rows) != len(plain_items):
+        return False
+    if not stored_protected:
+        return [r[2] for r in rows] == [s["payload_sha256"] for s in new_snapshots] or all(
+            r[2] == payload_sha256(i["payload"]) for r, i in zip(rows, plain_items)
+        )
+    reveal = Reveal(conn)
+    for (ref, payload, _), item in zip(rows, plain_items):
+        if ref != item["evidence_ref"] or not is_encrypted(payload):
+            return False
+        opened = reveal.payload(decision_id, ref, payload)
+        if opened is None or canonical_json(opened) != canonical_json(item["payload"]):
+            return False
+    return True
+
+
 def record_decision(
     conn: psycopg.Connection[Any],
     *,
@@ -133,25 +165,23 @@ def record_decision(
         if len(json.dumps(ev.payload, default=str)) > MAX_PAYLOAD_BYTES:
             raise ValueError(f"Evidence '{ev.evidence_ref}' is larger than {MAX_PAYLOAD_BYTES // 1024} KB.")
 
+    from backend.crypto import Protector, tenant_encrypts  # deferred: only needed for protected lenders
+
     dec_uuid = keyed_decision_id(tenant_id, idempotency_key)
     decided_at = _utc(envelope.decided_at)
     captured_at = datetime.now(timezone.utc)
-    items = _chain_items(envelope, decided_at, captured_at)
+    plain_items = _chain_items(envelope, decided_at, captured_at)
+    protector = Protector(tenant_id, str(dec_uuid)) if tenant_encrypts(conn, tenant_id) else None
+    items = [protector.protect_item(i) for i in plain_items] if protector is not None else plain_items
     snapshots, chain_length, chain_head = build_chain(dec_uuid, items)
 
     with conn.transaction():
         existing = conn.execute(
-            "SELECT chain_length, chain_head, decided_at FROM decisions WHERE decision_id = %s AND tenant_id = %s",
+            "SELECT chain_length, chain_head, decided_at, encrypted FROM decisions WHERE decision_id = %s AND tenant_id = %s",
             (dec_uuid, tenant_id),
         ).fetchone()
         if existing is not None:
-            stored = [
-                r[0]
-                for r in conn.execute(
-                    "SELECT payload_sha256 FROM decision_snapshots WHERE decision_id = %s ORDER BY seq", (dec_uuid,)
-                ).fetchall()
-            ]
-            if stored != [s["payload_sha256"] for s in snapshots]:
+            if not _same_content(conn, str(dec_uuid), bool(existing[3]), plain_items, snapshots):
                 raise FileExistsError("That Idempotency-Key was already used with different content.")
             return (
                 {
@@ -167,14 +197,16 @@ def record_decision(
             """
             INSERT INTO decisions (
                 decision_id, application_id, decided_at, outcome, model_version, policy_version,
-                score, chain_length, chain_head, tenant_id, recording_mode
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'recorded')
+                score, chain_length, chain_head, tenant_id, recording_mode, encrypted
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'recorded', %s)
             """,
             (
                 dec_uuid, envelope.external_id, decided_at, envelope.outcome, envelope.model_version,
-                envelope.policy_version, envelope.score, chain_length, chain_head, tenant_id,
+                envelope.policy_version, envelope.score, chain_length, chain_head, tenant_id, protector is not None,
             ),
         )
+        if protector is not None:
+            protector.store_wrap(conn)
         with conn.cursor() as cur:
             for snap in snapshots:
                 _insert_snapshot_row(cur, snap)

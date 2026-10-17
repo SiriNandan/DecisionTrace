@@ -499,11 +499,12 @@ def propose(
     fmt: str,
     *,
     llm: LLMCall | None = None,
+    use_ai: bool = True,
 ) -> Proposal:
     """Draft a mapping. Falls back to the built-in rules if the AI is off, unreachable or unusable."""
     base, issues = heuristic_spec(headers, rows, fmt)
     spec, proposed_by = base, "rules"
-    call = llm if llm is not None else default_llm()
+    call = None if not use_ai else (llm if llm is not None else default_llm())
     if call is not None:
         try:
             raw_text = call(build_prompt(headers, rows))

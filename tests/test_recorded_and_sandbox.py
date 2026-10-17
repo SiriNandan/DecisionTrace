@@ -112,6 +112,9 @@ def _recorded_with(sandbox, client, writer):
 
     dec = post_fixture(client, sandbox[0], "decline")
     env = load_fixtures()["decline"]
+    with psycopg.connect(os.environ["DB_URL"]) as conn:  # this lender lets a model write summaries
+        conn.execute("UPDATE tenants SET ai_summary_policy = 'allow' WHERE tenant_id = %s", (sandbox[0]["tenant_id"],))
+        conn.commit()
     return env, build_recorded_report(dec, os.environ["DB_URL"], writer)
 
 
@@ -198,7 +201,7 @@ def test_removed_lender_evidence_is_reported_as_unavailable_and_not_cited(client
     with psycopg.connect(os.environ["DB_URL"]) as conn:
         conn.execute(
             "INSERT INTO evidence_status (decision_id, evidence_ref, status, changed_at, tenant_id) "
-            "SELECT decision_id, evidence_ref, 'erased_by_retention', now(), tenant_id "
+            "SELECT decision_id, evidence_ref, 'erased_by_retention', now() + interval '1 hour', tenant_id "
             "FROM decision_snapshots WHERE decision_id = %s AND evidence_type = 'lender_decision'",
             (dec,),
         )

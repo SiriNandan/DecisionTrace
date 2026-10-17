@@ -26,6 +26,7 @@ packaging==26.3
 pluggy==1.7.0
 psycopg==3.3.6
 psycopg-binary==3.3.6
+psycopg-pool==3.3.3
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.11

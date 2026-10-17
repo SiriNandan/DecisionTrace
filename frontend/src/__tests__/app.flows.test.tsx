@@ -92,7 +92,7 @@ describe("first visit and trouble", () => {
     });
     render(<App />);
     await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("Acme Bank · Analyst"));
-    expect(seen.find((s) => s.url.endsWith("/decisions"))!.headers["X-API-Key"]).toBe("dtk_good");
+    expect(seen.find((s) => s.url.includes("/decisions?"))!.headers["X-API-Key"]).toBe("dtk_good");
     expect(screen.getByRole("link", { name: "Connect your data" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Risk signals" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -255,6 +255,7 @@ describe("things the independent review found", () => {
       const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
       if (url.endsWith("/v1/me")) return ok(STAFF);
       if (url.includes("/reconstruct/")) return ok(MOCK_RECONSTRUCTION_REPORTS[ID]);
+      if (url.includes("/seal") || url.includes("/consents")) return { ok: false, status: 404, json: async () => ({}) };
       if (url.endsWith(`/decisions/${ID}`)) { await gate; return ok(MOCK_DECISION_RECORDS[ID]); }   // slow
       if (url.endsWith(`/decisions/${other}`)) return ok(MOCK_DECISION_RECORDS[other]);
       return ok(MOCK_DECISIONS_LIST);

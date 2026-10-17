@@ -141,18 +141,20 @@ def drift_signals(views: list[DecisionView], now: datetime | None = None) -> lis
     return out
 
 
-def access_signals(conn: psycopg.Connection[Any], tenant_id: str, now: datetime) -> list[dict[str, Any]]:
-    """Who is asking for lots of decisions that aren't there, or lots of decisions in a short time?"""
-    since = now - timedelta(minutes=ENUMERATION_WINDOW_MIN)
+def access_signals(conn: psycopg.Connection[Any], tenant_id: str, now: datetime | None = None) -> list[dict[str, Any]]:
+    """Who is asking for lots of decisions that aren't there, or lots of decisions in a short time?
+
+    The ten-minute window is measured on the database's clock (which stamped the log) unless a time is given."""
     rows = conn.execute(
         "SELECT credential_id, claim_id, role, "
         "count(*) FILTER (WHERE outcome = 'not_found'), "
         "count(DISTINCT object_id) FILTER (WHERE outcome = 'allowed' AND object_type = 'decision' AND action IN ('read', 'verify', 'reconstruct')) "
-        "FROM access_log WHERE tenant_id = %s AND logged_at >= %s GROUP BY credential_id, claim_id, role",
-        (tenant_id, since),
+        "FROM access_log WHERE tenant_id = %s AND logged_at >= COALESCE(%s::timestamptz, now()) - make_interval(mins => %s) "
+        "GROUP BY credential_id, claim_id, role",
+        (tenant_id, now, ENUMERATION_WINDOW_MIN),
     ).fetchall()
     out: list[dict[str, Any]] = []
-    bucket = int(now.timestamp() // (ENUMERATION_WINDOW_MIN * 60))
+    bucket = int((now or datetime.now(timezone.utc)).timestamp() // (ENUMERATION_WINDOW_MIN * 60))
     for cred, claim, role, missed, distinct in rows:
         who = f"customer link {claim}" if claim is not None else f"credential {cred}" if cred is not None else "the shared demo key"
         key = f"{who}:{bucket}"
@@ -171,13 +173,13 @@ def flag_enumeration(conn: psycopg.Connection[Any], tenant_id: str, credential_i
                      role: str, now: datetime | None = None) -> bool:
     """Called each time someone asks for a decision that isn't there, so guessing is noticed as it happens
     rather than only when staff next run the checks. Returns True if a new signal was saved."""
-    now = now or datetime.now(timezone.utc)
-    since = now - timedelta(minutes=ENUMERATION_WINDOW_MIN)
     missed = conn.execute(
-        "SELECT count(*) FROM access_log WHERE tenant_id = %s AND outcome = 'not_found' AND logged_at >= %s "
+        "SELECT count(*) FROM access_log WHERE tenant_id = %s AND outcome = 'not_found' "
+        "AND logged_at >= COALESCE(%s::timestamptz, now()) - make_interval(mins => %s) "
         "AND credential_id IS NOT DISTINCT FROM %s AND claim_id IS NOT DISTINCT FROM %s",
-        (tenant_id, since, credential_id, claim_id),
+        (tenant_id, now, ENUMERATION_WINDOW_MIN, credential_id, claim_id),
     ).fetchone()[0]
+    now = now or datetime.now(timezone.utc)
     if missed < ENUMERATION_MIN:
         return False
     who = f"customer link {claim_id}" if claim_id is not None else f"credential {credential_id}" if credential_id is not None else "the shared demo key"
@@ -202,6 +204,7 @@ def scan_signals(
     include_access: bool = True,
 ) -> dict[str, Any]:
     """Look for signals and save the ones not already on file. Re-running adds nothing twice."""
+    given_now = now
     now = now or datetime.now(timezone.utc)
     views = load_views(conn, tenant_id, None, recent, also=decision_ids)  # always includes what was just saved
     found = decision_signals(views)
@@ -210,7 +213,7 @@ def scan_signals(
         found = [f for f in found if f["decision_id"] in keep]
     found += drift_signals(views, now)
     if include_access and decision_ids is None:
-        found += access_signals(conn, tenant_id, now)
+        found += access_signals(conn, tenant_id, given_now)
     saved = 0
     for f in found:
         saved += conn.execute(

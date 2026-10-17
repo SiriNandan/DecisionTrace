@@ -52,6 +52,11 @@ def configure_app(app: FastAPI) -> None:
             logging.getLogger(__name__).exception("Unhandled error on %s %s", request.method, request.url.path)
             if isinstance(exc, (psycopg.errors.UndefinedTable, psycopg.errors.UndefinedColumn, psycopg.errors.UndefinedFunction)):
                 return JSONResponse(status_code=503, content={"detail": UPGRADE_MESSAGE, "code": "needs_upgrade"})
+            from psycopg_pool import PoolTimeout
+
+            if isinstance(exc, PoolTimeout):
+                return JSONResponse(status_code=503, content={"detail": "The service is busy. Please try again in a moment.", "code": "busy"},
+                                    headers={"Retry-After": "2"})
             if isinstance(exc, psycopg.OperationalError):
                 return JSONResponse(status_code=503, content={"detail": "The service can't reach its database right now.", "code": "database_down"})
             return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side. Please try again.", "code": "server_error"})
@@ -62,6 +67,7 @@ def configure_app(app: FastAPI) -> None:
         allow_credentials=False,
         allow_methods=ALLOWED_METHODS,
         allow_headers=ALLOWED_HEADERS,
+        expose_headers=["X-Next-Cursor"],
     )
 
     @app.middleware("http")

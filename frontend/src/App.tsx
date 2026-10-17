@@ -1,17 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  fetchConsents,
   fetchDecisionRecord,
-  fetchDecisionsList,
+  fetchDecisionSeal,
+  fetchDecisionsPage,
   fetchMe,
+  needsSignIn,
   fetchReconstructionReport,
   ProblemKind,
   problemKind,
+  setAiSummaryChoice,
   submitDecisionOverride,
 } from "./api";
-import { hasCredential } from "./config";
+import { hasCredential, isUseMocksEnabled } from "./config";
 import { extractClaimToken, getSession, onSessionChange, signInCustomer, signOut } from "./lib/session";
 import DecisionView from "./components/DecisionView";
 import HomeView from "./components/HomeView";
+import ChoicesPanel from "./components/ChoicesPanel";
 import ServiceProblem from "./components/ServiceProblem";
 import StaffTools from "./components/StaffTools";
 import { ErrorBoundary, OfflineBar, SiteFooter, SiteNav } from "./components/SiteChrome";
@@ -26,15 +31,18 @@ import HelpPage from "./pages/HelpPage";
 import InsightsPage from "./pages/InsightsPage";
 import LegalPage from "./pages/LegalPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import SealsPage from "./pages/SealsPage";
 import SignalsPage from "./pages/SignalsPage";
 import SignInPage from "./pages/SignInPage";
 import QualityPage from "./pages/QualityPage";
 import {
   CreateOverridePayload,
   DecisionDetailRecord,
+  ConsentState,
   DecisionSummaryItem,
   Me,
   ReconstructionReportContract,
+  SealProof,
 } from "./types";
 
 const RECENT_KEY = "clearly:last-decision";
@@ -78,6 +86,7 @@ const TITLES: Record<string, string> = {
   connect: "Connect your data",
   quality: "Data checks",
   signals: "Risk signals",
+  seals: "Record seals",
   privacy: "Privacy",
   terms: "Terms of use",
   accessibility: "Accessibility",
@@ -91,6 +100,13 @@ export const App: React.FC = () => {
     return readRoute();
   });
   const [me, setMe] = useState<Me | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [consentFailed, setConsentFailed] = useState(false);
+  const [consentRetry, setConsentRetry] = useState(0);
+  const [seal, setSeal] = useState<{ id: string; data: SealProof } | null>(null);
+  const [consent, setConsent] = useState<{ id: string; data: ConsentState } | null>(null);
   const [meReady, setMeReady] = useState(false);
   const [casesProblem, setCasesProblem] = useState<ProblemKind>("other");
   const [recordProblem, setRecordProblem] = useState<ProblemKind>("other");
@@ -122,6 +138,8 @@ export const App: React.FC = () => {
     const mine = ++seq.current.cases;
     setLoadingCases(true);
     setCasesError(null);
+    setNextCursor(null);  // a page marker belongs to whoever asked for it and to this list only
+    setMoreError(null);
     if (!hasCredential()) {
       // Nothing to sign in with yet: say so, instead of sending a request that has to fail.
       setAllCases([]);
@@ -131,8 +149,11 @@ export const App: React.FC = () => {
       return;
     }
     try {
-      const list = await fetchDecisionsList();
-      if (mine === seq.current.cases) setAllCases(list);
+      const page = await fetchDecisionsPage(null);
+      if (mine === seq.current.cases) {
+        setAllCases(page.items);
+        setNextCursor(page.next);
+      }
     } catch (e) {
       if (mine !== seq.current.cases) return;
       setCasesError(errMsg(e));
@@ -141,6 +162,24 @@ export const App: React.FC = () => {
       if (mine === seq.current.cases) setLoadingCases(false);
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    const mine = seq.current.cases;
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const page = await fetchDecisionsPage(nextCursor);
+      if (mine !== seq.current.cases) return;
+      setAllCases((prev) => [...prev, ...page.items.filter((d) => !prev.some((p) => p.decision_id === d.decision_id))]);
+      setNextCursor(page.next);
+    } catch (e) {
+      if (mine !== seq.current.cases) return;  // the person has changed since: this failure isn't theirs
+      setMoreError(needsSignIn(e) ? "Your sign-in is missing or has expired. Please sign in again." : "We couldn’t load older decisions. The ones above are still here. Try again.");
+    } finally {
+      if (mine === seq.current.cases) setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore]);
 
   const loadReport = useCallback(async (id: string) => {
     const mine = ++seq.current.report;
@@ -205,7 +244,7 @@ export const App: React.FC = () => {
       onSessionChange(() => {
         // Whoever was signed in before must not leave anything behind for whoever comes next.
         seq.current = { cases: seq.current.cases + 1, record: seq.current.record + 1, report: seq.current.report + 1 };
-        setAllCases([]); setRecord(null); setReport(null); setRecordError(null); setReportError(null); setMe(null);
+        setAllCases([]); setNextCursor(null); setMoreError(null); setRecord(null); setReport(null); setRecordError(null); setReportError(null); setMe(null);
         try { window.localStorage.removeItem(RECENT_KEY); } catch { /* storage unavailable */ }
         setRecent(null);
         void loadMe();
@@ -244,6 +283,35 @@ export const App: React.FC = () => {
     const t = window.setTimeout(() => mainRef.current?.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true }), 50);
     return () => window.clearTimeout(t);
   }, [route.page, route.id, loadDecision]);
+
+  // The record's seal and the customer's choices come with it; neither exists for the built-in sample decisions.
+  useEffect(() => {
+    setSeal(null);
+    setConsent(null);
+    setConsentFailed(false);
+    if (!record || isUseMocksEnabled()) return;
+    const id = record.decision_id;
+    let current = true;  // ignore answers that arrive after the person has moved on
+    // Only believe an answer that has the expected shape; anything else just leaves the panel out.
+    fetchDecisionSeal(id).then((data) => current && typeof data?.sealed === "boolean" && setSeal({ id, data })).catch(() => undefined);
+    fetchConsents(id)
+      .then((data) => {
+        if (!current) return;
+        if (data && typeof data.ai_summary_on === "boolean") setConsent({ id, data });
+        else setConsentFailed(true);
+      })
+      .catch(() => current && setConsentFailed(true));
+    return () => { current = false; };
+  }, [record, consentRetry]);
+
+  const chooseAiSummary = async (granted: boolean) => {
+    if (!record) return;
+    const id = record.decision_id;
+    const data = await setAiSummaryChoice(id, granted);
+    if (routeRef.current.id !== id) return;  // they have moved to another decision while this was saving
+    setConsent({ id, data });
+    void loadReport(id);  // the explanation may now be written (or not) with the model
+  };
 
   useEffect(() => {
     if (!record || getSession().mode === "customer") return;  // a customer's decision is never remembered on this computer
@@ -293,6 +361,10 @@ export const App: React.FC = () => {
               loading={loadingCases}
               error={casesError}
               problem={casesProblem}
+              hasMore={nextCursor !== null}
+              moreError={moreError}
+              loadingMore={loadingMore}
+              onLoadMore={() => void loadMore()}
               onRetry={() => void loadCases()}
               onOpen={(id) => navigate({ page: "decision", id })}
               recent={recent}
@@ -332,6 +404,18 @@ export const App: React.FC = () => {
               onSubmitReview={submitReview}
               customer={me?.kind === "customer"}
               staffTools={me?.kind === "staff" ? <StaffTools record={record} me={me} /> : undefined}
+              seal={seal && seal.id === record.decision_id ? seal.data : undefined}
+              choices={
+                consent && consent.id === record.decision_id && me && me.scopes.includes("consent:write") ? (
+                  <ChoicesPanel state={consent.data} onChoose={chooseAiSummary} onBehalf={me.kind === "staff"} />
+                ) : consentFailed && me && me.scopes.includes("consent:write") ? (
+                  <div className="cl-card-rail" data-testid="choices-failed">
+                    <h2 className="cl-h3">{me.kind === "staff" ? "The customer’s choices" : "Your choices"}</h2>
+                    <p className="cl-muted">We couldn’t load the choices just now.</p>
+                    <button type="button" className="cl-btn cl-btn-ghost" onClick={() => setConsentRetry((n) => n + 1)}>Try again</button>
+                  </div>
+                ) : undefined
+              }
               onTrack={(e) => setActivity(track(e, record.decision_id))}
             />
           )}
@@ -340,12 +424,13 @@ export const App: React.FC = () => {
             <InsightsPage cases={cases} loading={loadingCases} error={casesError} problem={casesProblem} activity={activity} onActivityReset={refreshActivity} />
           )}
           {route.page === "about" && <AboutPage />}
-          {(route.page === "connect" || route.page === "quality" || route.page === "signals") &&
+          {(route.page === "connect" || route.page === "quality" || route.page === "signals" || route.page === "seals") &&
             (me?.kind === "staff" ? (
               <>
                 {route.page === "connect" && <ConnectPage />}
                 {route.page === "quality" && <QualityPage />}
                 {route.page === "signals" && <SignalsPage />}
+                {route.page === "seals" && <SealsPage />}
               </>
             ) : meReady ? (
               <ServiceProblem kind="signin" what="page" offerSample={false} />

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -971,80 +973,77 @@ def record_override(
     }
 
 
-def list_decisions(
+def encode_cursor(decided_at: datetime, decision_id: Any) -> str:
+    raw = json.dumps({"t": decided_at.isoformat(), "i": str(decision_id)}, separators=(",", ":"))
+    return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+
+
+def decode_cursor(cursor: str) -> tuple[datetime, str]:
+    try:
+        data = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+        return parse_iso_timestamp(data["t"]), str(uuid.UUID(data["i"]))
+    except Exception as exc:  # any damage to the cursor is the caller's problem, not a server error
+        raise ValueError("That page marker isn't valid. Start again from the first page.") from exc
+
+
+def list_decisions_page(
     conn: psycopg.Connection[Any],
     *,
     applicant_id: str | None = None,
     limit: int = 100,
     tenant_id: str | None = None,
     only_decision_id: str | None = None,
-) -> list[dict[str, Any]]:
-    """List recorded decisions ordered by decided_at DESC (only `tenant_id`'s when given)."""
+    cursor: str | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """One page of decisions, newest first, and a marker for the next page (None when this is the last).
+
+    Paging is by position in the list (date, then id), not by offset, so it stays fast on a long list and does not skip
+    or repeat anything when new decisions arrive while someone is reading.
+    """
+    after_t, after_i = decode_cursor(cursor) if cursor else (None, None)
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT
-                d.decision_id,
-                d.application_id,
-                d.decided_at,
-                d.outcome,
-                d.model_version,
-                d.policy_version,
-                d.score,
-                d.chain_length,
-                d.chain_head,
-                (
-                    SELECT o.new_outcome
-                    FROM overrides o
-                    WHERE o.decision_id = d.decision_id AND o.kind = 'override'
-                    ORDER BY o.created_at DESC, o.override_id DESC
-                    LIMIT 1
-                ) AS override_outcome,
-                (
-                    SELECT ds.payload->>'applicant_id'
-                    FROM decision_snapshots ds
-                    WHERE ds.decision_id = d.decision_id
-                      AND ds.evidence_type IN ('application', 'application_submission')
-                    ORDER BY ds.seq ASC
-                    LIMIT 1
-                ) AS snap_applicant_id
-            FROM decisions d
-            WHERE (%s::text IS NULL OR d.tenant_id = %s)
-              AND (%s::uuid IS NULL OR d.decision_id = %s::uuid)
-            ORDER BY d.decided_at DESC, d.decision_id ASC
+            SELECT * FROM (
+                SELECT
+                    d.decision_id, d.application_id, d.decided_at, d.outcome, d.model_version, d.policy_version,
+                    d.score, d.chain_length, d.chain_head,
+                    (
+                        SELECT o.new_outcome FROM overrides o
+                        WHERE o.decision_id = d.decision_id AND o.kind = 'override'
+                        ORDER BY o.created_at DESC, o.override_id DESC LIMIT 1
+                    ) AS override_outcome,
+                    COALESCE((
+                        SELECT ds.payload->>'applicant_id' FROM decision_snapshots ds
+                        WHERE ds.decision_id = d.decision_id AND ds.evidence_type IN ('application', 'application_submission')
+                        ORDER BY ds.seq ASC LIMIT 1
+                    ), d.application_id) AS applicant
+                FROM decisions d
+                WHERE (%s::text IS NULL OR d.tenant_id = %s)
+                  AND (%s::uuid IS NULL OR d.decision_id = %s::uuid)
+                  AND (%s::timestamptz IS NULL OR d.decided_at < %s OR (d.decided_at = %s AND d.decision_id > %s::uuid))
+            ) q
+            WHERE (%s::text IS NULL OR q.applicant = %s)
+            ORDER BY q.decided_at DESC, q.decision_id ASC
             LIMIT %s;
             """,
-            (tenant_id, tenant_id, only_decision_id, only_decision_id, limit),
+            (tenant_id, tenant_id, only_decision_id, only_decision_id, after_t, after_t, after_t, after_i,
+             applicant_id, applicant_id, limit + 1),
         )
         rows = cur.fetchall()
 
+    more = len(rows) > limit
+    rows = rows[:limit]
     results: list[dict[str, Any]] = []
-    for row in rows:
-        (
-            dec_id,
-            application_id,
-            decided_at,
-            initial_outcome,
-            model_version,
-            policy_version,
-            score_val,
-            chain_length,
-            chain_head,
-            override_outcome,
-            snap_applicant_id,
-        ) = row
-        resolved_applicant_id = str(snap_applicant_id or application_id)
-        if applicant_id and resolved_applicant_id != applicant_id:
-            continue
+    for (dec_id, application_id, decided_at, initial_outcome, model_version, policy_version, score_val, chain_length,
+         chain_head, override_outcome, applicant) in rows:
         effective_outcome = str(override_outcome) if override_outcome else str(initial_outcome)
         results.append(
             {
                 "decision_id": str(dec_id),
                 "application_id": str(application_id),
-                "applicant_id": resolved_applicant_id,
-                "decided_at": (
-                    decided_at.isoformat() if hasattr(decided_at, "isoformat") else str(decided_at)
-                ),
+                "applicant_id": str(applicant),
+                "decided_at": decided_at.isoformat() if hasattr(decided_at, "isoformat") else str(decided_at),
                 "outcome": effective_outcome,
                 "initial_outcome": str(initial_outcome),
                 "effective_outcome": effective_outcome,
@@ -1055,7 +1054,22 @@ def list_decisions(
                 "chain_head": str(chain_head),
             }
         )
-    return results
+    next_cursor = encode_cursor(rows[-1][2], rows[-1][0]) if more and rows else None
+    return results, next_cursor
+
+
+def list_decisions(
+    conn: psycopg.Connection[Any],
+    *,
+    applicant_id: str | None = None,
+    limit: int = 100,
+    tenant_id: str | None = None,
+    only_decision_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """List recorded decisions ordered by decided_at DESC (only `tenant_id`'s when given)."""
+    return list_decisions_page(
+        conn, applicant_id=applicant_id, limit=limit, tenant_id=tenant_id, only_decision_id=only_decision_id
+    )[0]
 
 
 def get_decision_detail(
@@ -1165,6 +1179,9 @@ def reconstruct_decision_from_snapshots(
         expected_chain_head,
     ) = dec_row
 
+    from backend.crypto import ERASED_PAYLOAD, UNAVAILABLE_PAYLOAD, Reveal, is_encrypted
+
+    reveal = Reveal(conn)
     chain_dicts = [
         {
             "decision_id": str(dec_uuid),
@@ -1185,11 +1202,25 @@ def reconstruct_decision_from_snapshots(
         }
         for r in snap_rows
     ]
+    protected = bool(conn.execute("SELECT encrypted FROM decisions WHERE decision_id = %s", (dec_uuid,)).fetchone()[0])
     chain_valid, first_broken_seq, broken_reason = verify_chain(
         chain_dicts,
         int(expected_chain_length),
         str(expected_chain_head),
+        payload_check=reveal.checker(),
+        protected=protected,
     )
+    # From here on, protected content is shown in the clear. If its key was destroyed on purpose it reads as removed;
+    # if the key is missing or unreadable for any other reason it reads as unavailable (and the check above has failed).
+    if protected:
+        for d in chain_dicts:
+            if is_encrypted(d["payload"]):
+                opened = reveal.payload(d["decision_id"], d["evidence_ref"], d["payload"])
+                if opened is None:
+                    d["payload"] = ERASED_PAYLOAD if reveal.state(d["decision_id"]) == "erased" else UNAVAILABLE_PAYLOAD
+                else:
+                    d["payload"] = opened
+    shown_by_seq = {int(d["seq"]): d["payload"] for d in chain_dicts}
     tamper_reasons: list[str] = [broken_reason] if (not chain_valid and broken_reason) else []
 
     with conn.cursor() as cur:
@@ -1215,7 +1246,8 @@ def reconstruct_decision_from_snapshots(
     rule_checks: list[dict[str, Any]] = []
     for r in snap_rows:
         ev_type = str(r[1])
-        payload_dict = dict(r[5]) if isinstance(r[5], dict) else {}
+        shown = shown_by_seq.get(int(r[0]), r[5])
+        payload_dict = dict(shown) if isinstance(shown, dict) else {}
         if ev_type == "rule_check":
             rule_checks.append(payload_dict)
         elif ev_type not in by_type:

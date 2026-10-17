@@ -160,6 +160,10 @@ def seed_scenarios(
             for migration in sorted(MIGRATION_FILE.parent.glob("*.sql")):  # every update, so older databases work too
                 cur.execute(migration.read_text(encoding="utf-8"))
 
+        # Re-seeding replaces the demo decisions, so any seals over the old ones no longer describe anything.
+        conn.execute("DELETE FROM anchor_leaves WHERE tenant_id = 'demo'")
+        conn.execute("DELETE FROM anchor_batches WHERE tenant_id = 'demo'")
+
         for scen in scenarios:
             name = str(scen["name"])
             applicant_id = str(scen["applicant_id"])
@@ -177,6 +181,9 @@ def seed_scenarios(
             with conn.cursor() as cur:
                 # Everything that points at the decision goes first (links, signals, findings and corrections included),
                 # so re-seeding a database that has been used doesn't trip over them.
+                cur.execute("DELETE FROM consents WHERE decision_id = %s;", (dec_uuid,))
+                cur.execute("DELETE FROM data_key_wraps WHERE decision_id = %s;", (dec_uuid,))
+                cur.execute("DELETE FROM erasures WHERE decision_id = %s;", (dec_uuid,))
                 cur.execute("DELETE FROM claim_revocations WHERE claim_id IN (SELECT claim_id FROM claim_links WHERE decision_id = %s);", (dec_uuid,))
                 cur.execute("DELETE FROM claim_links WHERE decision_id = %s;", (dec_uuid,))
                 cur.execute("DELETE FROM signal_reviews WHERE signal_id IN (SELECT signal_id FROM risk_signals WHERE decision_id = %s);", (dec_uuid,))

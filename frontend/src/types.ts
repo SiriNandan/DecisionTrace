@@ -285,3 +285,43 @@ export interface SignalRunResult {
   open_total: number;
   by_severity: Record<string, number>;
 }
+
+/* ---- Seals, customer choices and paging ---- */
+
+export interface SealProof {
+  sealed: boolean;
+  sealed_at?: string;
+  leaf?: Record<string, unknown>;
+  head?: { seq: number; tenant_id: string; root: string; signed_at: string; leaf_count: number };
+  corrections?: { sealed: boolean; sealed_at?: string };
+}
+
+export interface SealBatch {
+  seq: number;
+  leaf_count: number;
+  root: string;
+  signed_at: string;
+  published: boolean;
+}
+
+export interface SealCheck {
+  ok: boolean;
+  batches: number;
+  records: number;
+  checked_published_copy: boolean;
+  not_yet_sealed: number;
+  problems: Array<{ batch: number; problem: string }>;
+}
+
+export interface ConsentState {
+  purpose: "ai_summary";
+  policy: "ask" | "allow" | "never";
+  choice: { granted: boolean; recorded_at: string; given_by: string } | null;
+  ai_summary_on: boolean;
+  history: Array<{ granted: boolean; recorded_at: string; given_by: string }>;
+}
+
+export interface DecisionsPage {
+  items: DecisionSummaryItem[];
+  next: string | null;
+}

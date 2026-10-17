@@ -16,6 +16,7 @@ import uuid
 
 import psycopg
 
+from backend.crypto import ERASED_PAYLOAD, UNAVAILABLE_PAYLOAD, Reveal, is_encrypted
 from backend.integrity import verify_chain as verify_hash_chain
 from backend.policy_search import (
     get_policy_as_of as query_policy_as_of,
@@ -64,6 +65,25 @@ def _extract_numbers(obj: Any, bucket: set[float]) -> None:
 def fast_db_url(db_url: str | None = None) -> str:
     """Resolve DB_URL from argument, environment, or .env.example."""
     return get_db_url(db_url)
+
+
+def _opened(conn: psycopg.Connection[Any], decision_id: str, rows: list[tuple[Any, ...]], ref_at: int, payload_at: int) -> list[tuple[Any, ...]]:
+    """Show protected payloads in the clear; if the key was destroyed the item reads as removed."""
+    protected = bool((conn.execute("SELECT encrypted FROM decisions WHERE decision_id = %s", (decision_id,)).fetchone() or [False])[0])
+    if not protected:
+        return rows
+    reveal = Reveal(conn)
+    out = []
+    for r in rows:
+        row = list(r)
+        if is_encrypted(row[payload_at]):
+            opened = reveal.payload(decision_id, str(row[ref_at]), row[payload_at])
+            if opened is None:
+                row[payload_at] = ERASED_PAYLOAD if reveal.state(decision_id) == "erased" else UNAVAILABLE_PAYLOAD
+            else:
+                row[payload_at] = opened
+        out.append(tuple(row))
+    return out
 
 
 class ToolSession:
@@ -211,6 +231,7 @@ class ToolSession:
                     (dec_uuid,),
                 )
                 snap_rows = cur.fetchall()
+                snap_rows = _opened(conn, str(dec_uuid), snap_rows, 2, 7)
 
         human_override: dict[str, Any] | None = None
         override_detail: dict[str, Any] | None = None
@@ -363,6 +384,7 @@ class ToolSession:
                     (dec_uuid,),
                 )
                 rows = cur.fetchall()
+                rows = _opened(conn, str(dec_uuid), rows, 2, 7)
 
         target = (evidence_ref or "").strip()
         filter_all = target in ("", "*", "all")
@@ -497,11 +519,12 @@ class ToolSession:
             for r in rows
         ]
 
-        ok, first_broken_seq, reason = verify_hash_chain(
-            chain_rows,
-            expected_length,
-            expected_head,
-        )
+        with psycopg.connect(self.db_url, connect_timeout=5) as conn:
+            check = Reveal(conn).checker()
+            protected = bool(conn.execute("SELECT encrypted FROM decisions WHERE decision_id = %s", (dec_uuid,)).fetchone()[0])
+            ok, first_broken_seq, reason = verify_hash_chain(
+                chain_rows, expected_length, expected_head, payload_check=check, protected=protected
+            )
         result = {
             "decision_id": str(decision_id),
             "chain_verified": bool(ok),

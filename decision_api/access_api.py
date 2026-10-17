@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from backend.auth import (
     Principal,
-    api_db_url,
+    plain_connection,
     ensure_decision_visible,
     hash_api_key,
     log_access,
@@ -34,7 +34,7 @@ class ClaimRequest(BaseModel):
 def health() -> dict[str, Any]:
     """Open to anyone: is the service up, and is its database up to date? No data is returned."""
     try:
-        with psycopg.connect(api_db_url(), connect_timeout=3) as conn:
+        with plain_connection() as conn:
             status = schema_status(conn)
     except psycopg.Error:
         return {"status": "database_down", "database": "unreachable"}

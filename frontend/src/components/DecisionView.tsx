@@ -3,6 +3,7 @@ import {
   CreateOverridePayload,
   DecisionDetailRecord,
   DecisionSnapshotRow,
+  SealProof,
   ReconstructionReportContract,
 } from "../types";
 import {
@@ -35,6 +36,10 @@ export interface DecisionViewProps {
   customer?: boolean;
   /** Lender-only tools (risk signals, customer link) shown at the top of the side panel. */
   staffTools?: React.ReactNode;
+  /** The record's seal: undefined while unknown (or not applicable), then sealed or not yet. */
+  seal?: SealProof | null;
+  /** The customer's choices panel. */
+  choices?: React.ReactNode;
 }
 
 interface RuleRow {
@@ -109,7 +114,7 @@ function RiskRing({ score, tone }: { score: number; tone: string }) {
 }
 
 export const DecisionView: React.FC<DecisionViewProps> = ({
-  record, report, reportLoading, reportError, onRetryReport, onBack, onSubmitReview, onTrack, customer = false, staffTools,
+  record, report, reportLoading, reportError, onRetryReport, onBack, onSubmitReview, onTrack, customer = false, staffTools, seal, choices,
 }) => {
   const [openRefs, setOpenRefs] = useState<Set<string>>(new Set());
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -525,6 +530,19 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
                   <small>The risk estimate was re-worked from the saved inputs.</small></div>
               </li>
               )}
+              {seal && (
+                <li className={seal.sealed ? "is-ok" : "is-review"} data-testid="seal-badge" data-sealed={String(seal.sealed)}>
+                  <span aria-hidden="true">{seal.sealed ? "✓" : "–"}</span>
+                  <div>
+                    <strong>{seal.sealed ? `Sealed on ${formatDate(seal.sealed_at ?? "", true)}` : "Not sealed yet"}</strong>
+                    <small>
+                      {seal.sealed
+                        ? "This record was sealed on that date. If it is changed afterwards, a check will show it."
+                        : "Records are sealed in batches. Until this one is, nothing has been recorded that would show a later change."}
+                    </small>
+                  </div>
+                </li>
+              )}
               <li className={completeness === null ? "is-wait" : completeness === 100 ? "is-ok" : "is-review"}>
                 <span aria-hidden="true">{completeness === null ? "…" : completeness === 100 ? "✓" : "◐"}</span>
                 <div><strong>{completeness === null ? "Checking the evidence" : `${completeness}% of evidence available`}</strong>
@@ -547,6 +565,8 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
               <a className="cl-btn cl-btn-ghost" href="#review">Request a review</a>
             </div>
           </div>
+
+          {choices}
 
           <nav className="cl-card-rail cl-jump" aria-label="On this page">
             <h2 className="cl-h3">On this page</h2>

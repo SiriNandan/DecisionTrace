@@ -138,6 +138,14 @@ def ensure_postgres_running(tmp_path_factory: pytest.TempPathFactory):
 
 
 TEST_DB_NAME = "decisiontrace_test"
+TEST_KEY = "test-demo-admin-key"
+AUTH = {"X-API-Key": TEST_KEY}
+
+
+@pytest.fixture(autouse=True)
+def _demo_admin_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test starts with a known admin key for the demo tenant; tests may override DT_API_KEY."""
+    monkeypatch.setenv("DT_API_KEY", TEST_KEY)
 
 
 @pytest.fixture(scope="session", autouse=True)

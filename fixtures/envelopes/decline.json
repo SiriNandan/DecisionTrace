@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "external_id": "FIXTURE-DECLINE",
+  "subject_ref": "subj-fixture-decline",
+  "decided_at": "2026-10-01T12:00:00+00:00",
+  "outcome": "DECLINE",
+  "score": 0.59,
+  "model_version": "fixture-bank_model_v1",
+  "policy_version": "fixture-bank_policy_2026",
+  "reasons": [
+    {
+      "code": "SCORE_LOW",
+      "text": "The credit score is below what this lender requires."
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_type": "application",
+      "evidence_ref": "application:FIXTURE-DECLINE",
+      "source_id": "los",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "income_annual": 78176.06,
+        "requested_amount": 19190.91,
+        "dti_ratio": 0.344
+      }
+    },
+    {
+      "evidence_type": "bureau",
+      "evidence_ref": "bureau:FIXTURE-DECLINE",
+      "source_id": "bureau_api",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "credit_score": 512,
+        "delinquencies_24m": 1
+      }
+    },
+    {
+      "evidence_type": "document",
+      "evidence_ref": "document:payslip:FIXTURE-DECLINE",
+      "source_id": "doc_upload",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "status": "received"
+      }
+    }
+  ]
+}

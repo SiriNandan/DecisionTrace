@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import hmac
 import logging
 import os
 from typing import Any, Literal
 import uuid
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
-import psycopg
 
 from backend.contract import ReconstructionReport
-from data.load_policies import get_db_url
+from backend.auth import Principal, ensure_decision_visible, log_access, require_scope, tenant_connection
+from backend.ingest import DecisionEnvelopeV1, record_decision
 from decision_api.service import (
     create_decision,
     get_decision,
@@ -24,6 +23,7 @@ from decision_api.service import (
 )
 from backend.anchoring import append_anchor
 from backend.web import configure_app
+from decision_api.mappings_api import router as mappings_router
 from recon_agent.router import reset_state as reset_reconstruct_cache, router as reconstruct_router
 
 logger = logging.getLogger(__name__)
@@ -54,19 +54,18 @@ class OverrideRequest(BaseModel):
     actor_role: str = Field(..., min_length=1, description="Role of the reviewer recording the override")
 
 
-def get_connection() -> psycopg.Connection[Any]:
-    """Open a database connection using DB_URL from environment configuration."""
-    db_url = get_db_url(os.environ.get("DB_URL"))
-    return psycopg.connect(db_url, connect_timeout=5)
+def _parse_uuid(value: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Invalid decision_id UUID.") from exc
 
 
-def require_write_key(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
-    """Protect write endpoints when DT_API_KEY is configured; open (local demo) when it is unset."""
-    expected = os.environ.get("DT_API_KEY", "").strip()
-    if not expected:
-        return
-    if x_api_key is None or not hmac.compare_digest(x_api_key, expected):
-        raise HTTPException(status_code=401, detail="Missing or invalid X-API-Key.")
+def _anchor(created: dict[str, Any]) -> None:
+    try:
+        append_anchor(created["decision_id"], created["chain_length"], created["chain_head"], created["decided_at"])
+    except OSError:
+        logger.exception("Could not write chain-head anchor for %s", created["decision_id"])
 
 
 def create_app() -> FastAPI:
@@ -82,11 +81,13 @@ def create_app() -> FastAPI:
 
     configure_app(application)
     application.include_router(reconstruct_router)
+    application.include_router(mappings_router)
 
-    @application.post("/decide", dependencies=[Depends(require_write_key)])
+    @application.post("/decide")
     def post_decide(
         payload: DecideRequest,
         request: Request,
+        principal: Principal = Depends(require_scope("decide:write")),
         x_decision_date: str | None = Header(default=None, alias="X-Decision-Date"),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
         x_idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key"),
@@ -102,7 +103,7 @@ def create_app() -> FastAPI:
         data_dir_override = getattr(request.app.state, "data_dir", None)
 
         try:
-            with get_connection() as conn:
+            with tenant_connection(principal.tenant_id) as conn:
                 created = create_decision(
                     conn,
                     applicant_id=payload.applicant_id,
@@ -113,12 +114,8 @@ def create_app() -> FastAPI:
                     idempotency_key=effective_idem_key,
                     data_dir=data_dir_override,
                 )
-            try:
-                append_anchor(
-                    created["decision_id"], created["chain_length"], created["chain_head"], created["decided_at"]
-                )
-            except OSError:
-                logger.exception("Could not write chain-head anchor for %s", created["decision_id"])
+                log_access(conn, principal, "create", "decision", created["decision_id"])
+            _anchor(created)
             return created
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -127,15 +124,45 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    @application.post("/overrides", dependencies=[Depends(require_write_key)])
-    def post_override(payload: OverrideRequest) -> dict[str, Any]:
+    @application.post("/v1/decisions")
+    def post_v1_decision(
+        envelope: DecisionEnvelopeV1,
+        response: Response,
+        principal: Principal = Depends(require_scope("ingest:write")),
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ) -> dict[str, Any]:
+        """Record a decision the lender's own engine made, with the evidence it used (envelope schema v1)."""
+        key = (idempotency_key or "").strip()
+        if not key or len(key) > 200:
+            raise HTTPException(status_code=422, detail="An Idempotency-Key header (1-200 characters) is required.")
+        try:
+            with tenant_connection(principal.tenant_id) as conn:
+                result, replayed = record_decision(
+                    conn, tenant_id=principal.tenant_id, envelope=envelope, idempotency_key=key
+                )
+                log_access(conn, principal, "ingest_replay" if replayed else "ingest", "decision", result["decision_id"])
+        except FileExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if not replayed:
+            _anchor(result)
+            response.status_code = 201
+        return {**result, "replayed": replayed, "schema_version": envelope.schema_version}
+
+    @application.post("/overrides")
+    def post_override(
+        payload: OverrideRequest,
+        principal: Principal = Depends(require_scope("overrides:write")),
+    ) -> dict[str, Any]:
         try:
             dec_uuid = uuid.UUID(payload.decision_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="Invalid decision_id UUID.") from exc
 
         try:
-            with get_connection() as conn:
+            with tenant_connection(principal.tenant_id) as conn:
+                ensure_decision_visible(conn, principal, dec_uuid)
                 result = record_override(
                     conn,
                     decision_id=dec_uuid,
@@ -143,6 +170,7 @@ def create_app() -> FastAPI:
                     reason=payload.reason,
                     actor_role=payload.actor_role,
                 )
+                log_access(conn, principal, "override", "decision", str(dec_uuid))
             reset_reconstruct_cache()
             return result
         except LookupError as exc:
@@ -154,35 +182,62 @@ def create_app() -> FastAPI:
     def get_decisions_list(
         applicant_id: str | None = Query(default=None),
         limit: int = Query(default=100, ge=1, le=1000),
+        principal: Principal = Depends(require_scope("decisions:read")),
     ) -> list[dict[str, Any]]:
-        with get_connection() as conn:
-            return list_decisions(conn, applicant_id=applicant_id, limit=limit)
+        with tenant_connection(principal.tenant_id) as conn:
+            rows = list_decisions(conn, applicant_id=applicant_id, limit=limit, tenant_id=principal.tenant_id)
+            log_access(conn, principal, "list", "decision", f"n={len(rows)}")
+            return rows
 
     @application.get("/decisions/{decision_id}")
-    def get_decision_by_id(decision_id: str) -> dict[str, Any]:
+    def get_decision_by_id(
+        decision_id: str,
+        principal: Principal = Depends(require_scope("decisions:read")),
+    ) -> dict[str, Any]:
+        dec_uuid = _parse_uuid(decision_id)
         try:
-            dec_uuid = uuid.UUID(decision_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail="Invalid decision_id UUID.") from exc
-
-        try:
-            with get_connection() as conn:
-                return get_decision(conn, dec_uuid)
+            with tenant_connection(principal.tenant_id) as conn:
+                ensure_decision_visible(conn, principal, dec_uuid)
+                record = get_decision(conn, dec_uuid)
+                log_access(conn, principal, "read", "decision", str(dec_uuid))
+                return record
         except LookupError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(status_code=404, detail="We couldn't find that decision.") from exc
 
     @application.get("/decisions/{decision_id}/verify")
-    def get_decision_verification(decision_id: str) -> dict[str, Any]:
+    def get_decision_verification(
+        decision_id: str,
+        principal: Principal = Depends(require_scope("decisions:read")),
+    ) -> dict[str, Any]:
+        dec_uuid = _parse_uuid(decision_id)
         try:
-            dec_uuid = uuid.UUID(decision_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail="Invalid decision_id UUID.") from exc
-
-        try:
-            with get_connection() as conn:
-                return verify_decision(conn, dec_uuid)
+            with tenant_connection(principal.tenant_id) as conn:
+                ensure_decision_visible(conn, principal, dec_uuid)
+                result = verify_decision(conn, dec_uuid)
+                log_access(conn, principal, "verify", "decision", str(dec_uuid))
+                return result
         except LookupError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise HTTPException(status_code=404, detail="We couldn't find that decision.") from exc
+
+    @application.get("/v1/access-log")
+    def get_access_log(
+        limit: int = Query(default=100, ge=1, le=1000),
+        principal: Principal = Depends(require_scope("audit:read")),
+    ) -> list[dict[str, Any]]:
+        """Who looked at or changed what, for this tenant only (newest first)."""
+        with tenant_connection(principal.tenant_id) as conn:
+            rows = conn.execute(
+                "SELECT log_id, credential_id, role, action, object_type, object_id, outcome, logged_at "
+                "FROM access_log WHERE tenant_id = %s ORDER BY log_id DESC LIMIT %s",
+                (principal.tenant_id, limit),
+            ).fetchall()
+        return [
+            {
+                "log_id": r[0], "credential_id": r[1], "role": r[2], "action": r[3],
+                "object_type": r[4], "object_id": r[5], "outcome": r[6], "logged_at": r[7].isoformat(),
+            }
+            for r in rows
+        ]
 
     return application
 

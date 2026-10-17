@@ -115,6 +115,13 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
   const copy = outcomeCopy(effective);
   const rules = useMemo(() => normaliseRules(record, report), [record, report]);
   const failed = rules.filter((r) => !r.passed);
+  // A decision the lender made in its own system: we keep and explain it, but we didn't score it.
+  const recorded = (report?.recording_mode ?? record.recording_mode) === "recorded";
+  const lenderReasons = useMemo(() => {
+    const snap = record.snapshots.find((s) => s.evidence_type === "lender_decision");
+    const list = (snap?.payload?.reasons ?? []) as Array<{ text?: string }>;
+    return list.map((r) => String(r.text ?? "").trim()).filter(Boolean);
+  }, [record.snapshots]);
 
   const removed = useMemo(() => {
     const s = new Set<string>(report?.missing_evidence ?? []);
@@ -155,7 +162,11 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
   const replayOk = report?.replay_verified ?? null;
   const completeness = report ? Math.round(report.completeness * 100) : null;
 
-  const summary = report?.plain_language_summary || composeSummary(effective, rules);
+  const summary =
+    report?.plain_language_summary ||
+    (recorded
+      ? `${copy.headline}. ${lenderReasons.length ? lenderReasons.join(" ") : "Your lender didn’t give a reason with this decision."}`
+      : composeSummary(effective, rules));
   const aiWritten = Boolean(report?.plain_language_summary);
 
   const factors = useMemo(
@@ -282,8 +293,16 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
           </section>
 
           <section id="rules" className="cl-section" aria-labelledby="rules-h">
-            <h2 id="rules-h" className="cl-h2">How each lending rule applied</h2>
-            {rules.length === 0 ? (
+            <h2 id="rules-h" className="cl-h2">{recorded ? "The reasons your lender gave" : "How each lending rule applied"}</h2>
+            {recorded ? (
+              lenderReasons.length ? (
+                <ul className="cl-steps" data-testid="lender-reasons">
+                  {lenderReasons.map((t) => <li key={t}><span>{t}</span></li>)}
+                </ul>
+              ) : (
+                <p className="cl-muted">Your lender didn’t give a reason with this decision. You can ask them for one, or request a review below.</p>
+              )
+            ) : rules.length === 0 ? (
               <p className="cl-muted">No rule results were recorded for this decision.</p>
             ) : (
               <ul className="cl-rules">
@@ -311,7 +330,9 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
 
           <section id="next" className="cl-section" aria-labelledby="next-h">
             <h2 id="next-h" className="cl-h2">What could change the outcome</h2>
-            {failed.length === 0 ? (
+            {recorded ? (
+              <p className="cl-muted">Your lender is the best place to ask what would change this outcome. You can also request a review below.</p>
+            ) : failed.length === 0 ? (
               <p className="cl-muted">
                 {effective === "APPROVE"
                   ? "Nothing further is needed. Every rule that was checked was met."
@@ -333,7 +354,7 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
             <p className="cl-fine">Based on the rules in force on the decision date. A person always confirms eligibility.</p>
           </section>
 
-          {factors.length > 0 && (
+          {!recorded && factors.length > 0 && (
             <section id="factors" className="cl-section" aria-labelledby="factors-h">
               <h2 id="factors-h" className="cl-h2">What shaped the risk estimate</h2>
               <ul className="cl-factors">
@@ -351,7 +372,7 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
             </section>
           )}
 
-          {facts.length > 0 && (
+          {!recorded && facts.length > 0 && (
             <section id="facts" className="cl-section" aria-labelledby="facts-h">
               <h2 id="facts-h" className="cl-h2">The facts this explanation relies on</h2>
               <ul className="cl-facts">
@@ -458,11 +479,19 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
                 <div><strong>{chainOk ? "Unchanged since the decision" : "May have been altered"}</strong>
                   <small>{chainOk ? "Saved evidence still matches how it was first recorded." : "Saved evidence no longer matches the original."}</small></div>
               </li>
+              {recorded ? (
+                <li className="is-review" data-testid="score-as-recorded">
+                  <span aria-hidden="true">–</span>
+                  <div><strong>Score kept as your lender sent it</strong>
+                    <small>We haven’t re-worked it ourselves.</small></div>
+                </li>
+              ) : (
               <li className={replayOk === null ? "is-wait" : replayOk ? "is-ok" : "is-bad"}>
                 <span aria-hidden="true">{replayOk === null ? "…" : replayOk ? "✓" : "!"}</span>
                 <div><strong>{replayOk === null ? "Re-checking the score" : replayOk ? "Score re-calculated and matches" : "Score does not match"}</strong>
                   <small>The risk estimate was re-worked from the saved inputs.</small></div>
               </li>
+              )}
               <li className={completeness === null ? "is-wait" : completeness === 100 ? "is-ok" : "is-review"}>
                 <span aria-hidden="true">{completeness === null ? "…" : completeness === 100 ? "✓" : "◐"}</span>
                 <div><strong>{completeness === null ? "Checking the evidence" : `${completeness}% of evidence available`}</strong>
@@ -488,7 +517,7 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
 
           <nav className="cl-card-rail cl-jump" aria-label="On this page">
             <h2 className="cl-h3">On this page</h2>
-            {[["why", "Why this decision"], ["rules", "Lending rules"], ["next", "What could change it"], ["evidence", "Evidence on file"], ["review", "Request a review"]].map(([id, label]) => (
+            {[["why", "Why this decision"], ["rules", recorded ? "Lender’s reasons" : "Lending rules"], ["next", "What could change it"], ["evidence", "Evidence on file"], ["review", "Request a review"]].map(([id, label]) => (
               <a key={id} href={`#${id}`}>{label}</a>
             ))}
           </nav>

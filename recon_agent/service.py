@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from backend.contract import ReconstructionReport, ReconstructionStatus
 from recon_agent.backends import LLMBackend, get_llm_backend
 from recon_agent.guardrails import apply_claim_guardrails, check_narrative
+from recon_agent.recorded import build_recorded_report
 from recon_agent.tools import (
     DEFAULT_MAX_TOOL_CALLS,
     DEFAULT_REPLAY_TOLERANCE,
@@ -113,6 +114,14 @@ def _build_fallback_report(
     )
 
 
+def _recording_mode(decision_id: str, db_url: str) -> str:
+    with psycopg.connect(db_url, connect_timeout=10) as conn:
+        row = conn.execute(
+            "SELECT recording_mode FROM decisions WHERE decision_id = %s", (uuid.UUID(str(decision_id)),)
+        ).fetchone()
+    return str(row[0]) if row else "scored"
+
+
 @overload
 def reconstruct_decision(
     decision_id: str,
@@ -160,6 +169,14 @@ def reconstruct_decision(
     """
     resolved_db_url = fast_db_url(db_url)
     meta = _fetch_fallback_decision_meta(decision_id, resolved_db_url)
+
+    # Decisions the lender made itself have nothing to re-score; explain them straight from the preserved record.
+    if _recording_mode(decision_id, resolved_db_url) == "recorded":
+        recorded_report = build_recorded_report(decision_id, resolved_db_url)
+        if return_session:
+            return recorded_report, ToolSession(db_url=resolved_db_url)
+        return recorded_report
+
     active_backend = backend or get_llm_backend(backend_name)
 
     start_time = clock()

@@ -37,6 +37,8 @@ export const SiteFooter: React.FC<{ onTour: () => void }> = ({ onTour }) => (
       </div>
       <nav aria-label="Explore"><h2 className="cl-footer-h">Explore</h2>
         <Link to={{ page: "home" }}>Decisions</Link><Link to={{ page: "insights" }}>Insights</Link></nav>
+      <nav aria-label="For lenders"><h2 className="cl-footer-h">For lenders</h2>
+        <Link to={{ page: "connect" }}>Connect your data</Link></nav>
       <nav aria-label="Learn"><h2 className="cl-footer-h">Learn</h2>
         <Link to={{ page: "about" }}>How it works</Link><Link to={{ page: "help" }}>Help &amp; FAQ</Link>
         <button type="button" className="cl-footer-btn" onClick={onTour}>Welcome tour</button></nav>

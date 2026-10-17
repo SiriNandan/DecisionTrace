@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import hmac
 import os
 import uuid
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.contract import ReconstructionReport
+from backend.auth import Principal, ensure_decision_visible, log_access, require_scope, tenant_connection
 from backend.web import SlidingWindowLimiter, TTLCache
 from data.load_policies import get_db_url
 from recon_agent.service import reconstruct_decision
@@ -28,30 +28,29 @@ def reset_state() -> None:
 @router.post("/reconstruct/{decision_id}", response_model=ReconstructionReport)
 def post_reconstruct(
     decision_id: str,
-    request: Request,
-    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+    principal: Principal = Depends(require_scope("reconstruct")),
 ) -> ReconstructionReport:
     """Reconstruct a cited explanation for `decision_id` from preserved decision-time evidence.
 
-    Requires X-API-Key when DT_API_KEY is set (each call can spend LLM quota), is rate limited per client,
-    and briefly caches successful reports so repeated clicks do not repeat the model calls.
+    Requires a credential whose tenant owns the decision (404 otherwise, same as a missing one), is rate limited
+    per credential, and briefly caches successful reports so repeated clicks do not repeat the model calls.
     """
-    expected = os.environ.get("DT_API_KEY", "").strip()
-    if expected and (x_api_key is None or not hmac.compare_digest(x_api_key, expected)):
-        raise HTTPException(status_code=401, detail="Missing or invalid X-API-Key.")
-
     try:
-        uuid.UUID(str(decision_id))
+        dec_uuid = uuid.UUID(str(decision_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid decision_id UUID: {decision_id}") from exc
 
+    _limiter.check(principal.rate_key)
+    with tenant_connection(principal.tenant_id) as conn:
+        ensure_decision_visible(conn, principal, dec_uuid)
+        log_access(conn, principal, "reconstruct", "decision", str(dec_uuid))
+
     db_url = get_db_url(os.environ.get("DB_URL"))
-    cache_key = f"{db_url}|{os.environ.get('LLM_BACKEND', '')}|{decision_id}"
+    cache_key = f"{db_url}|{os.environ.get('LLM_BACKEND', '')}|{principal.tenant_id}|{decision_id}"
     cached = _cache.get(cache_key)
     if cached is not None:
         return cached
 
-    _limiter.check(request.client.host if request.client else "unknown")
     try:
         report = reconstruct_decision(decision_id, db_url=db_url)
     except KeyError as exc:

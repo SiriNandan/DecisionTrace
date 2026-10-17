@@ -270,6 +270,14 @@ class ReconstructionReport(BaseModel):
             "the structured fields remain the verified source of truth."
         ),
     )
+    recording_mode: Literal["scored", "recorded"] = Field(
+        default="scored",
+        description=(
+            "'scored' = DecisionTrace computed the decision, so replay_verified and rule_checks apply; "
+            "'recorded' = the lender's own system decided and DecisionTrace preserved it, so replay_verified is "
+            "False because there is nothing for DecisionTrace to re-score"
+        ),
+    )
     guardrail_rejections: int = Field(
         default=0,
         ge=0,

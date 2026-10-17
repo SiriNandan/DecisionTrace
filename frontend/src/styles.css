@@ -267,3 +267,17 @@ h1:focus { outline: none; }
 @media print { .cl-nav, .cl-modal-wrap, .cl-offline { display: none !important; } }
 .cl-page-wide { max-width: none; }
 @media (max-width: 560px) { .cl-nav-links a { padding: 8px 10px; font-size: 14px; } .cl-nav-links { gap: 0; } }
+
+/* Connect your data */
+.cl-connect .cl-field { display: grid; gap: 6px; margin: 10px 0; max-width: 520px; }
+.cl-connect .cl-field.cl-inline { grid-template-columns: 1fr auto; align-items: center; }
+.cl-connect select, .cl-connect input[type="text"] { min-height: 40px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; max-width: 100%; }
+.cl-connect input[type="text"] { margin-top: 6px; width: 100%; }
+.cl-match th small { display: block; font-weight: 400; }
+.cl-sure { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; border: 1px solid var(--line); }
+.cl-sure-hi { background: var(--good-bg); color: var(--good); }
+.cl-sure-lo { background: var(--review-bg); color: var(--review); }
+.cl-fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin: 14px 0; }
+.cl-actions { display: flex; gap: 12px; margin: 14px 0; }
+.cl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (max-width: 640px) { .cl-match thead { display: none; } .cl-match tr { display: grid; padding: 8px 0; } }

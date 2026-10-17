@@ -54,6 +54,7 @@ export interface ReconstructionReportContract {
   policy_note: string;
   human_override: OverrideContract | null;
   plain_language_summary?: string | null;
+  recording_mode?: "scored" | "recorded";
   guardrail_rejections: number;
   status: ReconstructionStatus;
 }
@@ -115,6 +116,7 @@ export interface DecisionDetailRecord {
   overrides: OverrideContract[];
   snapshots: DecisionSnapshotRow[];
   preserved_applicant_params?: Record<string, unknown>;
+  recording_mode?: "scored" | "recorded";
 }
 
 export interface CreateOverridePayload {
@@ -124,3 +126,73 @@ export interface CreateOverridePayload {
   actor_role: string;
 }
 
+
+/* ---- Connect your data (field matching and import) ---- */
+
+export interface FieldRuleContract {
+  column?: string | null;
+  const?: string | number | null;
+  transform: "text" | "number" | "percent_to_fraction" | "date" | "enum";
+  date_formats: string[];
+  value_map: Record<string, string>;
+  confidence: number;
+  note: string;
+}
+
+export interface MappingSpecContract {
+  spec_version: 1;
+  source_format: "csv" | "json";
+  external_id: FieldRuleContract | null;
+  subject_ref: FieldRuleContract | null;
+  decided_at: FieldRuleContract | null;
+  outcome: FieldRuleContract | null;
+  score: FieldRuleContract | null;
+  model_version: FieldRuleContract | null;
+  policy_version: FieldRuleContract | null;
+  reasons: { column: string; separator: string; code_text: Record<string, string>; confidence: number; note: string } | null;
+  evidence: Array<{ evidence_type: string; source_id: string; fields: Record<string, FieldRuleContract> }>;
+  ignored_columns: Record<string, string>;
+}
+
+export interface MappingPreview {
+  rows_total: number;
+  rows_checked: number;
+  valid: number;
+  invalid: number;
+  problems: Array<{ row: number; problems: string[] }>;
+}
+
+export interface MappingRecord {
+  mapping_id: number;
+  name: string;
+  version: number;
+  spec: MappingSpecContract;
+  spec_sha256: string;
+  proposed_by: string;
+  status: "proposed" | "approved" | "rejected";
+  gaps: string[];
+  preview?: MappingPreview;
+}
+
+export interface MappingProposal extends MappingRecord {
+  issues: string[];
+  columns: string[];
+  outcome_values: string[];
+}
+
+export interface ImportSummary {
+  mapping_id: number;
+  version: number;
+  dry_run: boolean;
+  created: number;
+  replayed: number;
+  rejected: number;
+  results: Array<{ row: number; status: string; problems?: string[] }>;
+}
+
+export type SourceFormat = "csv" | "json";
+export interface SourceData {
+  format: SourceFormat;
+  content?: string;
+  rows?: Array<Record<string, unknown>>;
+}

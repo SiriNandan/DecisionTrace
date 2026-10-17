@@ -972,8 +972,9 @@ def list_decisions(
     *,
     applicant_id: str | None = None,
     limit: int = 100,
+    tenant_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """List recorded decisions ordered by decided_at DESC."""
+    """List recorded decisions ordered by decided_at DESC (only `tenant_id`'s when given)."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -1003,10 +1004,11 @@ def list_decisions(
                     LIMIT 1
                 ) AS snap_applicant_id
             FROM decisions d
+            WHERE (%s::text IS NULL OR d.tenant_id = %s)
             ORDER BY d.decided_at DESC, d.decision_id ASC
             LIMIT %s;
             """,
-            (limit,),
+            (tenant_id, tenant_id, limit),
         )
         rows = cur.fetchall()
 
@@ -1182,6 +1184,10 @@ def reconstruct_decision_from_snapshots(
     )
     tamper_reasons: list[str] = [broken_reason] if (not chain_valid and broken_reason) else []
 
+    with conn.cursor() as cur:
+        cur.execute("SELECT recording_mode FROM decisions WHERE decision_id = %s;", (dec_uuid,))
+        recording_mode = str(cur.fetchone()[0])
+
     evidence_statuses = {str(r[0]): str(r[1]) for r in status_rows}
     has_erased_evidence = any(
         st in ("erased_by_retention", "missing") for st in evidence_statuses.values()
@@ -1284,4 +1290,5 @@ def reconstruct_decision_from_snapshots(
         "overrides": overrides_list,
         "snapshots": chain_dicts,
         "preserved_applicant_params": preserved_applicant_params,
+        "recording_mode": recording_mode,
     }

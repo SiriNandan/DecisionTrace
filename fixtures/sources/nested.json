@@ -1,0 +1,882 @@
+[
+ {
+  "application": {
+   "id": "NX-00000",
+   "customer": {
+    "ref": "cx539366"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-01T14:30:00+00:00",
+   "pd": 0.531
+  },
+  "income": {
+   "annual": 57445
+  },
+  "loan": {
+   "amount": 5943
+  },
+  "bureau": {
+   "score": 424
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00001",
+   "customer": {
+    "ref": "cx974716"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-02T14:30:00+00:00",
+   "pd": 0.356
+  },
+  "income": {
+   "annual": 27337
+  },
+  "loan": {
+   "amount": 12982
+  },
+  "bureau": {
+   "score": 659
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00002",
+   "customer": {
+    "ref": "cx237440"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-03T14:30:00+00:00",
+   "pd": 0.404
+  },
+  "income": {
+   "annual": 71838
+  },
+  "loan": {
+   "amount": 14702
+  },
+  "bureau": {
+   "score": 446
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00003",
+   "customer": {
+    "ref": "cx163863"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-04T14:30:00+00:00",
+   "pd": 0.413
+  },
+  "income": {
+   "annual": 89115
+  },
+  "loan": {
+   "amount": 5056
+  },
+  "bureau": {
+   "score": 722
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00004",
+   "customer": {
+    "ref": "cx875864"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-05T14:30:00+00:00",
+   "pd": 0.717
+  },
+  "income": {
+   "annual": 66993
+  },
+  "loan": {
+   "amount": 2624
+  },
+  "bureau": {
+   "score": 423
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00005",
+   "customer": {
+    "ref": "cx470969"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-06T14:30:00+00:00",
+   "pd": 0.41
+  },
+  "income": {
+   "annual": 52959
+  },
+  "loan": {
+   "amount": 14734
+  },
+  "bureau": {
+   "score": 460
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00006",
+   "customer": {
+    "ref": "cx580416"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-07T14:30:00+00:00",
+   "pd": 0.288
+  },
+  "income": {
+   "annual": 38688
+  },
+  "loan": {
+   "amount": 4376
+  },
+  "bureau": {
+   "score": 727
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00007",
+   "customer": {
+    "ref": "cx794655"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-08T14:30:00+00:00",
+   "pd": 0.415
+  },
+  "income": {
+   "annual": 86793
+  },
+  "loan": {
+   "amount": 24334
+  },
+  "bureau": {
+   "score": 430
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00008",
+   "customer": {
+    "ref": "cx711685"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-09T14:30:00+00:00",
+   "pd": 0.442
+  },
+  "income": {
+   "annual": 84693
+  },
+  "loan": {
+   "amount": 15011
+  },
+  "bureau": {
+   "score": 638
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00009",
+   "customer": {
+    "ref": "cx954638"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-10T14:30:00+00:00",
+   "pd": 0.413
+  },
+  "income": {
+   "annual": 62393
+  },
+  "loan": {
+   "amount": 10822
+  },
+  "bureau": {
+   "score": 492
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00010",
+   "customer": {
+    "ref": "cx641863"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-11T14:30:00+00:00",
+   "pd": 0.41
+  },
+  "income": {
+   "annual": 54354
+  },
+  "loan": {
+   "amount": 18209
+  },
+  "bureau": {
+   "score": 575
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00011",
+   "customer": {
+    "ref": "cx541060"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-12T14:30:00+00:00",
+   "pd": 0.506
+  },
+  "income": {
+   "annual": 24594
+  },
+  "loan": {
+   "amount": 4868
+  },
+  "bureau": {
+   "score": 484
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00012",
+   "customer": {
+    "ref": "cx967318"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-13T14:30:00+00:00",
+   "pd": 0.098
+  },
+  "income": {
+   "annual": 79089
+  },
+  "loan": {
+   "amount": 14818
+  },
+  "bureau": {
+   "score": 742
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00013",
+   "customer": {
+    "ref": "cx626017"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-14T14:30:00+00:00",
+   "pd": 0.346
+  },
+  "income": {
+   "annual": 56123
+  },
+  "loan": {
+   "amount": 12145
+  },
+  "bureau": {
+   "score": 704
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00014",
+   "customer": {
+    "ref": "cx237115"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-15T14:30:00+00:00",
+   "pd": 0.562
+  },
+  "income": {
+   "annual": 74795
+  },
+  "loan": {
+   "amount": 3253
+  },
+  "bureau": {
+   "score": 538
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00015",
+   "customer": {
+    "ref": "cx657658"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-16T14:30:00+00:00",
+   "pd": 0.507
+  },
+  "income": {
+   "annual": 23519
+  },
+  "loan": {
+   "amount": 2988
+  },
+  "bureau": {
+   "score": 558
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00016",
+   "customer": {
+    "ref": "cx259211"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-17T14:30:00+00:00",
+   "pd": 0.318
+  },
+  "income": {
+   "annual": 73411
+  },
+  "loan": {
+   "amount": 10325
+  },
+  "bureau": {
+   "score": 742
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00017",
+   "customer": {
+    "ref": "cx648936"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-18T14:30:00+00:00",
+   "pd": 0.421
+  },
+  "income": {
+   "annual": 75515
+  },
+  "loan": {
+   "amount": 12647
+  },
+  "bureau": {
+   "score": 459
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00018",
+   "customer": {
+    "ref": "cx635347"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-19T14:30:00+00:00",
+   "pd": 0.462
+  },
+  "income": {
+   "annual": 52674
+  },
+  "loan": {
+   "amount": 5238
+  },
+  "bureau": {
+   "score": 603
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00019",
+   "customer": {
+    "ref": "cx119613"
+   }
+  },
+  "decision": {
+   "result": "Manual review",
+   "when": "2026-08-20T14:30:00+00:00",
+   "pd": 0.275
+  },
+  "income": {
+   "annual": 80078
+  },
+  "loan": {
+   "amount": 3640
+  },
+  "bureau": {
+   "score": 605
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00020",
+   "customer": {
+    "ref": "cx561504"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-21T14:30:00+00:00",
+   "pd": 0.563
+  },
+  "income": {
+   "annual": 32947
+  },
+  "loan": {
+   "amount": 15107
+  },
+  "bureau": {
+   "score": 542
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00021",
+   "customer": {
+    "ref": "cx914225"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-22T14:30:00+00:00",
+   "pd": 0.385
+  },
+  "income": {
+   "annual": 64865
+  },
+  "loan": {
+   "amount": 8561
+  },
+  "bureau": {
+   "score": 490
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00022",
+   "customer": {
+    "ref": "cx292002"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-23T14:30:00+00:00",
+   "pd": 0.284
+  },
+  "income": {
+   "annual": 45583
+  },
+  "loan": {
+   "amount": 1395
+  },
+  "bureau": {
+   "score": 701
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00023",
+   "customer": {
+    "ref": "cx738115"
+   }
+  },
+  "decision": {
+   "result": "Manual review",
+   "when": "2026-08-24T14:30:00+00:00",
+   "pd": 0.371
+  },
+  "income": {
+   "annual": 15536
+  },
+  "loan": {
+   "amount": 5773
+  },
+  "bureau": {
+   "score": 589
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00024",
+   "customer": {
+    "ref": "cx104123"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-25T14:30:00+00:00",
+   "pd": 0.389
+  },
+  "income": {
+   "annual": 31448
+  },
+  "loan": {
+   "amount": 23626
+  },
+  "bureau": {
+   "score": 716
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00025",
+   "customer": {
+    "ref": "cx913735"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-26T14:30:00+00:00",
+   "pd": 0.354
+  },
+  "income": {
+   "annual": 88304
+  },
+  "loan": {
+   "amount": 13857
+  },
+  "bureau": {
+   "score": 601
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00026",
+   "customer": {
+    "ref": "cx937990"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-27T14:30:00+00:00",
+   "pd": 0.379
+  },
+  "income": {
+   "annual": 67486
+  },
+  "loan": {
+   "amount": 3039
+  },
+  "bureau": {
+   "score": 506
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00027",
+   "customer": {
+    "ref": "cx257079"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-28T14:30:00+00:00",
+   "pd": 0.44
+  },
+  "income": {
+   "annual": 59571
+  },
+  "loan": {
+   "amount": 20684
+  },
+  "bureau": {
+   "score": 400
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00028",
+   "customer": {
+    "ref": "cx280718"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-01T14:30:00+00:00",
+   "pd": 0.589
+  },
+  "income": {
+   "annual": 28299
+  },
+  "loan": {
+   "amount": 12914
+  },
+  "bureau": {
+   "score": 436
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00029",
+   "customer": {
+    "ref": "cx248435"
+   }
+  },
+  "decision": {
+   "result": "Manual review",
+   "when": "2026-08-02T14:30:00+00:00",
+   "pd": 0.328
+  },
+  "income": {
+   "annual": 34470
+  },
+  "loan": {
+   "amount": 21788
+  },
+  "bureau": {
+   "score": 577
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00030",
+   "customer": {
+    "ref": "cx596493"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-03T14:30:00+00:00",
+   "pd": 0.462
+  },
+  "income": {
+   "annual": 31101
+  },
+  "loan": {
+   "amount": 4779
+  },
+  "bureau": {
+   "score": 638
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00031",
+   "customer": {
+    "ref": "cx749174"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-04T14:30:00+00:00",
+   "pd": 0.285
+  },
+  "income": {
+   "annual": 26257
+  },
+  "loan": {
+   "amount": 5722
+  },
+  "bureau": {
+   "score": 575
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00032",
+   "customer": {
+    "ref": "cx860420"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-05T14:30:00+00:00",
+   "pd": 0.165
+  },
+  "income": {
+   "annual": 36160
+  },
+  "loan": {
+   "amount": 17919
+  },
+  "bureau": {
+   "score": 670
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00033",
+   "customer": {
+    "ref": "cx226182"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-06T14:30:00+00:00",
+   "pd": 0.518
+  },
+  "income": {
+   "annual": 86194
+  },
+  "loan": {
+   "amount": 1886
+  },
+  "bureau": {
+   "score": 552
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00034",
+   "customer": {
+    "ref": "cx683506"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-07T14:30:00+00:00",
+   "pd": 0.46
+  },
+  "income": {
+   "annual": 49224
+  },
+  "loan": {
+   "amount": 17986
+  },
+  "bureau": {
+   "score": 485
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00035",
+   "customer": {
+    "ref": "cx164755"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-08T14:30:00+00:00",
+   "pd": 0.512
+  },
+  "income": {
+   "annual": 84807
+  },
+  "loan": {
+   "amount": 18746
+  },
+  "bureau": {
+   "score": 568
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00036",
+   "customer": {
+    "ref": "cx441817"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-09T14:30:00+00:00",
+   "pd": 0.312
+  },
+  "income": {
+   "annual": 40578
+  },
+  "loan": {
+   "amount": 8844
+  },
+  "bureau": {
+   "score": 778
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00037",
+   "customer": {
+    "ref": "cx815476"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-10T14:30:00+00:00",
+   "pd": 0.651
+  },
+  "income": {
+   "annual": 79589
+  },
+  "loan": {
+   "amount": 12651
+  },
+  "bureau": {
+   "score": 414
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00038",
+   "customer": {
+    "ref": "cx643528"
+   }
+  },
+  "decision": {
+   "result": "Accepted",
+   "when": "2026-08-11T14:30:00+00:00",
+   "pd": 0.444
+  },
+  "income": {
+   "annual": 40381
+  },
+  "loan": {
+   "amount": 23692
+  },
+  "bureau": {
+   "score": 576
+  }
+ },
+ {
+  "application": {
+   "id": "NX-00039",
+   "customer": {
+    "ref": "cx656506"
+   }
+  },
+  "decision": {
+   "result": "Declined",
+   "when": "2026-08-12T14:30:00+00:00",
+   "pd": 0.398
+  },
+  "income": {
+   "annual": 60812
+  },
+  "loan": {
+   "amount": 12948
+  },
+  "bureau": {
+   "score": 452
+  }
+ }
+]

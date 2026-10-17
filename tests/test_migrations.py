@@ -62,6 +62,7 @@ def test_app_role_permissions_and_append_only_enforcement() -> None:
         with app_conn.cursor() as cur:
             cur.execute("SELECT current_user;")
             assert cur.fetchone() == ("app_role",)
+            cur.execute("SELECT set_config('app.tenant_id', 'demo', false);")
 
             # SELECT allowed on policies and model_registry
             cur.execute("SELECT count(*) FROM policies;")

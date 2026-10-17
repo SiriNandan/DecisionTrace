@@ -23,13 +23,17 @@ export interface HomeViewProps {
   error: string | null;
   signInNeeded?: boolean;
   problem?: ProblemKind;
+  hasMore?: boolean;
+  moreError?: string | null;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
   onRetry: () => void;
   onOpen: (id: string) => void;
   recent: { id: string; label: string } | null;
   onSearch?: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signInNeeded, problem, onRetry, onOpen, recent, onSearch }) => {
+export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signInNeeded, problem, hasMore, moreError, loadingMore, onLoadMore, onRetry, onOpen, recent, onSearch }) => {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
   const [sort, setSort] = useState<"new" | "risk-high" | "risk-low">("new");
@@ -143,7 +147,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
 
       <section className="cl-stats" aria-label="Summary of decisions">
         {[
-          ["Decisions", counts.total, "neutral"],
+          [hasMore ? "Decisions loaded" : "Decisions", counts.total, "neutral"],
           ["Approved", counts.APPROVE, "good"],
           ["Not approved", counts.DECLINE, "bad"],
           ["In review", counts.REFER, "review"],
@@ -175,6 +179,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
         <div className="cl-toolbar">
           <p className="cl-muted" role="status" aria-live="polite">
             {loading ? "Loading…" : `Showing ${Math.min(limit, sorted.length)} of ${sorted.length} decision${sorted.length === 1 ? "" : "s"}`}
+            {!loading && hasMore && " loaded so far. There are older ones."}
           </p>
           <label className="cl-sort">
             <span>Sort by</span>
@@ -246,6 +251,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
             <button type="button" className="cl-btn cl-btn-ghost" onClick={() => setLimit((n) => n + PAGE)}>
               Show {Math.min(PAGE, sorted.length - limit)} more
             </button>
+          </div>
+        )}
+        {sorted.length <= limit && hasMore && onLoadMore && !loading && !error && (
+          <div className="cl-more">
+            <button type="button" className="cl-btn cl-btn-ghost" onClick={onLoadMore} disabled={loadingMore} data-testid="load-more">
+              {loadingMore ? "Loading…" : moreError ? "Try again" : "Load older decisions"}
+            </button>
+            {moreError && <p className="cl-note cl-note-bad" role="alert">{moreError}</p>}
           </div>
         )}
       </section>

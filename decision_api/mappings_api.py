@@ -109,7 +109,9 @@ def propose_mapping(req: ProposeRequest, principal: Principal = Depends(require_
     headers, rows = _rows(req)
     if not rows:
         raise HTTPException(status_code=422, detail="The file has no data rows.")
-    proposal = propose(headers, rows, req.format)
+    with tenant_connection(principal.tenant_id) as conn:
+        policy = str((conn.execute("SELECT ai_summary_policy FROM tenants WHERE tenant_id = %s", (principal.tenant_id,)).fetchone() or ["ask"])[0])
+    proposal = propose(headers, rows, req.format, use_ai=policy != "never")  # a lender that opted out of AI gets the built-in rules
     with tenant_connection(principal.tenant_id) as conn:
         mapping_id = _insert_version(conn, principal, req.name, proposal.spec, proposal.proposed_by)
         log_access(conn, principal, "mapping_propose", "mapping", str(mapping_id))

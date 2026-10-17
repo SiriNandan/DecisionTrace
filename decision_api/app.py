@@ -19,6 +19,7 @@ from decision_api.service import (
     get_decision,
     get_decision_detail,
     list_decisions,
+    list_decisions_page,
     record_override,
     verify_decision,
 )
@@ -27,6 +28,8 @@ from backend.web import configure_app
 from backend.migrate import apply_migrations, auto_migrate_enabled
 from backend.signals import signals_for_decision
 from decision_api.access_api import router as access_router
+from decision_api.anchors_api import router as anchors_router
+from decision_api.consent_api import router as consent_router
 from decision_api.mappings_api import router as mappings_router
 from decision_api.signals_api import router as signals_router
 from decision_api.quality_api import router as quality_router
@@ -84,6 +87,9 @@ async def _lifespan(_: FastAPI):  # type: ignore[no-untyped-def]
         except Exception:
             logger.exception("Could not update the database on start-up; /health will say what is missing.")
     yield
+    from backend.auth import close_pools
+
+    close_pools()
 
 
 def create_app() -> FastAPI:
@@ -104,6 +110,8 @@ def create_app() -> FastAPI:
     application.include_router(quality_router)
     application.include_router(access_router)
     application.include_router(signals_router)
+    application.include_router(anchors_router)
+    application.include_router(consent_router)
 
     @application.post("/decide")
     def post_decide(
@@ -219,13 +227,23 @@ def create_app() -> FastAPI:
 
     @application.get("/decisions")
     def get_decisions_list(
+        response: Response,
         applicant_id: str | None = Query(default=None),
         limit: int = Query(default=100, ge=1, le=1000),
+        cursor: str | None = Query(default=None, description="The X-Next-Cursor value from the previous page"),
         principal: Principal = Depends(require_scope("decisions:read")),
     ) -> list[dict[str, Any]]:
+        """Newest first. When there is more, the response carries an `X-Next-Cursor` header: send it back as `cursor`."""
         with tenant_connection(principal.tenant_id) as conn:
-            rows = list_decisions(conn, applicant_id=applicant_id, limit=limit, tenant_id=principal.tenant_id,
-                                  only_decision_id=principal.decision_id)
+            try:
+                rows, next_cursor = list_decisions_page(
+                    conn, applicant_id=applicant_id, limit=limit, tenant_id=principal.tenant_id,
+                    only_decision_id=principal.decision_id, cursor=cursor,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            if next_cursor:
+                response.headers["X-Next-Cursor"] = next_cursor
             log_access(conn, principal, "list", "decision", f"n={len(rows)}")
             return rows
 

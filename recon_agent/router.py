@@ -7,6 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from backend.consent import ai_summary_allowed
 from backend.contract import ReconstructionReport
 from backend.auth import Principal, ensure_decision_visible, log_access, require_scope, tenant_connection
 from backend.web import SlidingWindowLimiter, TTLCache
@@ -49,17 +50,25 @@ def post_reconstruct(
     with tenant_connection(principal.tenant_id) as conn:
         ensure_decision_visible(conn, principal, dec_uuid)
         log_access(conn, principal, "reconstruct", "decision", str(dec_uuid))
+        protected = bool(conn.execute("SELECT encrypted FROM decisions WHERE decision_id = %s", (dec_uuid,)).fetchone()[0])
 
     db_url = get_db_url(os.environ.get("DB_URL"))
-    cache_key = f"{db_url}|{os.environ.get('LLM_BACKEND', '')}|{principal.tenant_id}|{decision_id}"
-    cached = _cache.get(cache_key)
+    # Reports for protected decisions hold their content in the clear, and an erasure runs in another process that can't
+    # clear this cache, so those reports are never kept.
+    cache_key = None if protected else f"{db_url}|{os.environ.get('LLM_BACKEND', '')}|{principal.tenant_id}|{decision_id}"
+    cached = _cache.get(cache_key) if cache_key else None
     if cached is not None:
+        # The choice may have been withdrawn on another worker since this was written: a summary is only served while allowed.
+        if cached.plain_language_summary and not ai_summary_allowed(decision_id, db_url):
+            return cached.model_copy(update={"plain_language_summary": None})
         return cached
 
     try:
         report = reconstruct_decision(decision_id, db_url=db_url)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if report.status == "ok":
+    if report.plain_language_summary and not ai_summary_allowed(decision_id, db_url):
+        report = report.model_copy(update={"plain_language_summary": None})  # withdrawn while the model was writing it
+    if report.status == "ok" and cache_key:
         _cache.put(cache_key, report)
     return report

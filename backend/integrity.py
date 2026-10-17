@@ -15,6 +15,7 @@ Number Formatting & Canonical JSON Rules:
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
@@ -209,7 +210,8 @@ def build_chain(
         cap_ts = _normalize_timestamp(item.get("captured_at", item["source_timestamp"]))
 
         raw_payload = copy.deepcopy(item["payload"])
-        p_sha = payload_sha256(raw_payload)
+        # Protected evidence stores ciphertext, so the chain commits to a keyed fingerprint of the content instead.
+        p_sha = str(item["payload_sha256_override"]) if item.get("payload_sha256_override") else payload_sha256(raw_payload)
 
         e_hash = entry_hash(
             decision_id=dec_id_str,
@@ -249,10 +251,20 @@ def build_chain(
     )
 
 
+def is_envelope(payload: Any) -> bool:
+    """A well-formed protected-content envelope: exactly `_enc` holding version, algorithm, nonce and ciphertext."""
+    if not isinstance(payload, dict) or set(payload) != {"_enc"}:
+        return False
+    e = payload["_enc"]
+    return isinstance(e, dict) and {"v", "alg", "nonce", "ct"} <= set(e) and all(isinstance(e[k], (str, int)) for k in ("v", "alg", "nonce", "ct"))
+
+
 def verify_chain(
     rows: list[dict[str, Any]],
     expected_length: int,
     expected_head: str,
+    payload_check: Callable[[dict[str, Any]], bool | None] | None = None,
+    protected: bool = False,
 ) -> tuple[bool, int | None, str | None]:
     """Verify hash-chained snapshot rows against expected_length and expected_head.
 
@@ -302,7 +314,14 @@ def verify_chain(
 
         # 4. Payload hash verification (if payload is present)
         stored_payload_sha = str(row.get("payload_sha256", ""))
-        if "payload" in row and row["payload"] is not None:
+        if protected and is_envelope(row.get("payload")):
+            # Protected content (only for decisions recorded as protected): its fingerprint is keyed, so it can only be
+            # re-checked by someone holding the key. True = matches, False = doesn't, None = can't be checked because the
+            # key was destroyed on purpose. A decision that is NOT protected never gets this exemption.
+            verdict = payload_check(row) if payload_check is not None else None
+            if verdict is False:
+                return (False, row_seq, f"payload fingerprint mismatch at seq {row_seq}")
+        elif "payload" in row and row["payload"] is not None:
             recomputed_payload_sha = payload_sha256(row["payload"])
             if recomputed_payload_sha != stored_payload_sha:
                 return (

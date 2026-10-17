@@ -103,11 +103,11 @@ def load_fixtures() -> dict[str, dict[str, Any]]:
     return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted(FIXTURE_DIR.glob("*.json"))}
 
 
-def provision_tenants(conn: psycopg.Connection, count: int, prefix: str = "sandbox-bank") -> list[dict[str, Any]]:
+def provision_tenants(conn: psycopg.Connection, count: int, prefix: str = "sandbox-bank", encrypt: bool = False) -> list[dict[str, Any]]:
     out = []
     for n in range(1, count + 1):
         tid = f"{prefix}-{n:02d}"
-        create_tenant(conn, tid, f"Sandbox Bank {n:02d} (synthetic data)")
+        create_tenant(conn, tid, f"Sandbox Bank {n:02d} (synthetic data)", encrypt)
         keys = {role: issue_key(conn, tid, role, "sandbox")[1] for role in ROLES}
         out.append({"tenant_id": tid, "keys": keys})
     return out

@@ -18,11 +18,14 @@ from typing import Any
 
 import psycopg
 
+from backend.crypto import Reveal, decrypt_payload, encrypt_payload, is_encrypted, payload_aad, seal_payload
 from backend.integrity import GENESIS, entry_hash, payload_sha256, verify_chain
 from backend.mapping import RowError, to_number
 from backend.mapping_ai import LLMCall, norm
 from backend.redaction import redact_text
 
+PROTECTED_MESSAGE = "The details of this item are protected."
+REMOVED_MESSAGE = "The details of this item were removed."
 MAX_AI_FINDINGS = 50
 OUTLIER_MIN_VALUES = 30
 OUTLIER_Z = 6.0
@@ -355,8 +358,14 @@ def load_views(
         "SELECT decision_id::text, evidence_ref, evidence_type, payload, source_timestamp, entry_hash "
         "FROM decision_snapshots WHERE decision_id = ANY(%s::uuid[]) ORDER BY decision_id, seq", (list(views),),
     ).fetchall()
+    reveal = Reveal(conn)
+    protected = {str(r[0]) for r in conn.execute(
+        "SELECT decision_id::text FROM decisions WHERE decision_id = ANY(%s::uuid[]) AND encrypted", (list(views),)).fetchall()}
     for d, ref, etype, payload, ts, eh in snaps:
-        views[str(d)].items.append(Item(str(ref), str(etype), dict(payload or {}), _utc(ts) if ts else None, str(eh)))
+        opened = reveal.payload(str(d), str(ref), payload) if str(d) in protected and is_encrypted(payload) else payload
+        if opened is None:  # its key was destroyed: nothing to check, and no reason to flag it as missing
+            continue
+        views[str(d)].items.append(Item(str(ref), str(etype), dict(opened or {}), _utc(ts) if ts else None, str(eh)))
     return list(views.values())
 
 
@@ -391,23 +400,53 @@ def scan(
                 (list(by_id),)).fetchall()
         }
     fresh = [f for f in candidates if (f["decision_id"], f["rule_id"], f["evidence_ref"], f["field"]) not in existing]
+    protected = {str(r[0]) for r in conn.execute(
+        "SELECT decision_id::text FROM decisions WHERE decision_id = ANY(%s::uuid[]) AND encrypted", (list(by_id),)).fetchall()} if by_id else set()
+    policy = str((conn.execute("SELECT ai_summary_policy FROM tenants WHERE tenant_id = %s", (tenant_id,)).fetchone() or ["ask"])[0])
     notes: list[str] = []
-    if llm is not None and fresh:
-        notes = ai_triage(fresh, by_id, llm)
+    # A model only ever sees records the lender allows it to see: never when the lender's policy is 'never', and never
+    # for protected decisions, whose content is meant to stay inside the encrypted store.
+    for_model = [f for f in fresh if f["decision_id"] not in protected]
+    if llm is not None and for_model and policy != "never":
+        notes = ai_triage(for_model, by_id, llm)
 
+    reveal = Reveal(conn)
     saved = 0
     for f in fresh:
+        message, observed, fix, ai_note, enc = f["message"], f["observed"], f["suggested_fix"], f.get("ai_note"), None
+        if f["decision_id"] in protected:  # values and wording are personal data: keep them under the decision's key
+            key = reveal.dek(f["decision_id"])
+            if key is None:
+                continue  # nothing to protect them with (content already removed): don't write them in the clear
+            enc = encrypt_payload(key[1], f"{f['decision_id']}|finding:{f['rule_id']}:{f['evidence_ref']}:{f['field']}",
+                                  {"message": message, "observed": observed, "suggested_fix": fix, "ai_note": ai_note})
+            message, observed, fix, ai_note = PROTECTED_MESSAGE, {}, None, None
         cur = conn.execute(
             "INSERT INTO quality_findings (tenant_id, decision_id, rule_id, kind, severity, evidence_ref, field, observed, "
-            "message, suggested_fix, ai_note, found_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s) "
+            "message, suggested_fix, ai_note, found_by, enc_detail) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s, %s, %s::jsonb) "
             "ON CONFLICT (decision_id, rule_id, evidence_ref, field) DO NOTHING",
             (tenant_id, f["decision_id"], f["rule_id"], f["kind"], f["severity"], f["evidence_ref"], f["field"],
-             json.dumps(f["observed"]), f["message"], json.dumps(f["suggested_fix"]) if f["suggested_fix"] else None,
-             f.get("ai_note"), f["found_by"]),
+             json.dumps(observed), message, json.dumps(fix) if fix else None, ai_note, f["found_by"],
+             json.dumps(enc) if enc else None),
         )
         saved += cur.rowcount
     by_sev = {s: sum(1 for f in fresh if f["severity"] == s) for s in ("error", "warning", "info")}
     return {"decisions_checked": len(views), "new_findings": saved, "by_severity": by_sev, "notes": notes}
+
+
+def open_finding(reveal: Reveal, f: dict[str, Any], enc_detail: Any) -> dict[str, Any]:
+    """Fill in the wording and values of a finding about a protected decision (or say they were removed)."""
+    if not enc_detail:
+        return f
+    key = reveal.dek(f["decision_id"])
+    if key is None:
+        return {**f, "message": REMOVED_MESSAGE, "observed": None, "suggested_fix": None, "ai_note": None}
+    try:
+        d = decrypt_payload(key[1], payload_aad(f["decision_id"], f"finding:{f['rule_id']}:{f['evidence_ref']}:{f['field']}"), enc_detail)
+    except Exception:
+        return {**f, "message": REMOVED_MESSAGE, "observed": None, "suggested_fix": None, "ai_note": None}
+    return {**f, "message": d["message"], "observed": d["observed"].get("value") if isinstance(d["observed"], dict) else d["observed"],
+            "suggested_fix": d["suggested_fix"], "ai_note": d["ai_note"]}
 
 
 def finding_status(conn: psycopg.Connection[Any], finding_id: int) -> str:
@@ -424,8 +463,8 @@ class CorrectionConflict(Exception):
 
 
 def _correction_row(decision_id: str, seq: int, ref: str, key: str, role: str, ts: datetime,
-                    payload: dict[str, Any], prev: str) -> dict[str, Any]:
-    p_sha = payload_sha256(payload)
+                    payload: dict[str, Any], prev: str, p_sha: str | None = None) -> dict[str, Any]:
+    p_sha = p_sha or payload_sha256(payload)
     row = {
         "decision_id": decision_id, "seq": seq, "evidence_type": "correction",
         "evidence_ref": f"correction:{seq}:{ref}:{key}", "source_id": role,
@@ -448,7 +487,12 @@ def append_correction(
     ).fetchone()
     if snap is None:
         raise LookupError("That item isn't part of this decision's record.")
-    original = dict(snap[0] or {})
+    reveal = Reveal(conn)
+    protected = bool((conn.execute("SELECT encrypted FROM decisions WHERE decision_id = %s", (decision_id,)).fetchone() or [False])[0])
+    opened = reveal.payload(decision_id, evidence_ref, snap[0]) if protected and is_encrypted(snap[0]) else snap[0]
+    if opened is None:
+        raise LookupError("That item was removed, so it can't be corrected.")
+    original = dict(opened or {})
     old = original.get(field_name)
     last = conn.execute(
         "SELECT seq, entry_hash FROM corrections WHERE decision_id = %s ORDER BY seq DESC LIMIT 1", (decision_id,)
@@ -459,14 +503,20 @@ def append_correction(
         "evidence_ref": evidence_ref, "field": field_name, "old_value": old, "new_value": new_value,
         "reason": reason, "source": source, "original_entry_hash": str(snap[1]), "finding_id": finding_id,
     }
-    row = _correction_row(decision_id, seq, evidence_ref, field_name, role, ts, payload, prev)
+    stored, p_sha = payload, None
+    if protected:  # the old and new values are personal data too: same key as the decision, so erasing it erases them
+        key = reveal.dek(decision_id)
+        if key is None:
+            raise LookupError("That decision's content was removed, so it can't be corrected.")
+        stored, p_sha = seal_payload(key[0], decision_id, f"correction:{seq}:{evidence_ref}:{field_name}", key[1], payload)
+    row = _correction_row(decision_id, seq, evidence_ref, field_name, role, ts, stored, prev, p_sha)
     try:
         with conn.transaction():
             conn.execute(
                 "INSERT INTO corrections (tenant_id, decision_id, seq, finding_id, evidence_ref, field, original_entry_hash, "
                 "payload, payload_sha256, prev_hash, entry_hash, corrected_by_role, corrected_by_credential, created_at) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s)",
-                (tenant_id, decision_id, seq, finding_id, evidence_ref, field_name, str(snap[1]), json.dumps(payload),
+                (tenant_id, decision_id, seq, finding_id, evidence_ref, field_name, str(snap[1]), json.dumps(stored),
                  row["payload_sha256"], prev, row["entry_hash"], role, credential_id, ts),
             )
     except psycopg.errors.UniqueViolation as exc:
@@ -482,11 +532,16 @@ def load_corrections(conn: psycopg.Connection[Any], decision_id: str) -> tuple[l
         "FROM corrections WHERE decision_id = %s ORDER BY seq", (decision_id,),
     ).fetchall()
     chain, shown = [], []
+    reveal = Reveal(conn)
+    protected = bool((conn.execute("SELECT encrypted FROM decisions WHERE decision_id = %s", (decision_id,)).fetchone() or [False])[0])
     for seq, ref, key, payload, p_sha, prev, eh, role, ts in rows:
+        stored_payload = payload
+        if protected and is_encrypted(payload):
+            payload = reveal.payload(decision_id, f"correction:{seq}:{ref}:{key}", payload) or {}
         chain.append({
             "decision_id": decision_id, "seq": int(seq), "evidence_type": "correction",
             "evidence_ref": f"correction:{seq}:{ref}:{key}", "source_id": str(role), "source_timestamp": ts,
-            "captured_at": ts, "payload": payload, "payload_sha256": str(p_sha), "prev_hash": str(prev), "entry_hash": str(eh),
+            "captured_at": ts, "payload": stored_payload, "payload_sha256": str(p_sha), "prev_hash": str(prev), "entry_hash": str(eh),
         })
         shown.append({
             "seq": int(seq), "evidence_ref": str(ref), "field": str(key), "old_value": payload.get("old_value"),
@@ -495,5 +550,5 @@ def load_corrections(conn: psycopg.Connection[Any], decision_id: str) -> tuple[l
         })
     if not chain:
         return [], True, None
-    ok, _, why = verify_chain(chain, len(chain), chain[-1]["entry_hash"])
+    ok, _, why = verify_chain(chain, len(chain), chain[-1]["entry_hash"], payload_check=reveal.checker(), protected=protected)
     return shown, ok, why

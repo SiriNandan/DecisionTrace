@@ -58,7 +58,7 @@ export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; custome
       {staff && (
         <nav aria-label="For lenders"><h2 className="cl-footer-h">For lenders</h2>
           <Link to={{ page: "connect" }}>Connect your data</Link><Link to={{ page: "quality" }}>Data checks</Link>
-          <Link to={{ page: "signals" }}>Risk signals</Link></nav>
+          <Link to={{ page: "signals" }}>Risk signals</Link><Link to={{ page: "seals" }}>Record seals</Link></nav>
       )}
       <nav aria-label="Learn"><h2 className="cl-footer-h">Learn</h2>
         <Link to={{ page: "about" }}>How it works</Link><Link to={{ page: "help" }}>Help &amp; FAQ</Link>

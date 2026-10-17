@@ -38,19 +38,21 @@ ROLE_SCOPES: dict[str, frozenset[str]] = {
         {
             "decisions:read", "reconstruct", "overrides:write", "mappings:read", "mappings:write", "mappings:approve",
             "quality:read", "quality:write", "quality:resolve", "claims:issue", "signals:read", "signals:write",
-            "signals:resolve",
+            "signals:resolve", "seals:read", "seals:write", "consent:write",
         }
     ),
-    "auditor": frozenset({"decisions:read", "reconstruct", "audit:read", "mappings:read", "quality:read", "signals:read"}),
+    "auditor": frozenset(
+        {"decisions:read", "reconstruct", "audit:read", "mappings:read", "quality:read", "signals:read", "seals:read"}
+    ),
     "admin": frozenset(
         {
             "ingest:write", "decide:write", "decisions:read", "reconstruct", "overrides:write", "audit:read",
             "mappings:read", "mappings:write", "mappings:approve", "quality:read", "quality:write", "quality:resolve",
-            "claims:issue", "signals:read", "signals:write", "signals:resolve",
+            "claims:issue", "signals:read", "signals:write", "signals:resolve", "seals:read", "seals:write", "consent:write",
         }
     ),
     # A customer opening their own decision from a link: one decision, nothing else.
-    "consumer": frozenset({"decisions:read", "reconstruct", "review:request"}),
+    "consumer": frozenset({"decisions:read", "reconstruct", "review:request", "consent:write"}),
 }
 
 CUSTOMER_ROLE = "consumer"
@@ -101,17 +103,115 @@ def api_db_url() -> str:
     return get_db_url(os.environ.get("DB_URL"))
 
 
-def tenant_connection(tenant_id: str) -> psycopg.Connection[Any]:
-    """Open a connection pinned to `tenant_id` (session setting read by the row-level security policies)."""
-    conn = psycopg.connect(api_db_url(), connect_timeout=5)
-    conn.execute("SELECT set_config('app.tenant_id', %s, false)", (tenant_id,))
+# ---------- connections ----------
+# By default every request opens its own database connection. Setting DT_DB_POOL_SIZE=N keeps up to N connections open
+# and reuses them. A reused connection must never carry one lender's identity into the next request, so each one is
+# reset to "no lender selected" when it is handed back, and anything unfinished is rolled back first.
+
+_pools: dict[str, Any] = {}
+_pools_lock = threading.Lock()
+
+
+def pool_size() -> int:
+    try:
+        return max(0, int(os.environ.get("DT_DB_POOL_SIZE", "0")))
+    except ValueError:
+        return 0
+
+
+def _forget_lender(conn: psycopg.Connection[Any]) -> None:
+    conn.execute("RESET app.tenant_id")
     conn.commit()
-    return conn
+
+
+def _pool_for(url: str) -> Any:
+    from psycopg_pool import ConnectionPool
+
+    with _pools_lock:
+        pool = _pools.get(url)
+        if pool is None:
+            pool = ConnectionPool(
+                url, min_size=1, max_size=pool_size(), timeout=10, open=True, reset=_forget_lender,
+                check=ConnectionPool.check_connection, kwargs={"connect_timeout": 5},
+            )
+            _pools[url] = pool
+        return pool
+
+
+def close_pools() -> None:
+    with _pools_lock:
+        pools = list(_pools.values())
+        _pools.clear()
+    for pool in pools:
+        pool.close()
+
+
+class _Borrowed:
+    """A pooled connection used like `with psycopg.connect(...)`: commit on success, roll back on error, then give it back."""
+
+    def __init__(self, pool: Any, tenant_id: str | None) -> None:
+        self.pool, self.tenant_id, self.conn = pool, tenant_id, None
+
+    def __enter__(self) -> psycopg.Connection[Any]:
+        self.conn = self.pool.getconn()
+        try:
+            if self.tenant_id is not None:
+                self.conn.execute("SELECT set_config('app.tenant_id', %s, false)", (self.tenant_id,))
+                self.conn.commit()
+        except BaseException:
+            self.pool.putconn(self.conn)
+            raise
+        return self.conn
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        try:
+            if exc_type is None:
+                self.conn.commit()
+            else:
+                self.conn.rollback()
+        finally:
+            self.pool.putconn(self.conn)  # the pool resets the lender setting before anyone else can have it
+
+
+class _Direct:
+    def __init__(self, tenant_id: str | None) -> None:
+        self.tenant_id, self.conn = tenant_id, None
+
+    def __enter__(self) -> psycopg.Connection[Any]:
+        self.conn = psycopg.connect(api_db_url(), connect_timeout=5)
+        if self.tenant_id is not None:
+            self.conn.execute("SELECT set_config('app.tenant_id', %s, false)", (self.tenant_id,))
+            self.conn.commit()
+        return self.conn
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        assert self.conn is not None
+        try:
+            if exc_type is None:
+                self.conn.commit()
+            else:
+                self.conn.rollback()
+        finally:
+            self.conn.close()
+
+
+def _open(tenant_id: str | None) -> Any:
+    return _Borrowed(_pool_for(api_db_url()), tenant_id) if pool_size() > 0 else _Direct(tenant_id)
+
+
+def tenant_connection(tenant_id: str) -> Any:
+    """A connection pinned to `tenant_id` (the session setting read by the row-level security policies); use with `with`."""
+    return _open(tenant_id)
+
+
+def plain_connection() -> Any:
+    """A connection with no lender selected, for the few lookups made before the lender is known; use with `with`."""
+    return _open(None)
 
 
 def _lookup_credential(key: str) -> Principal | None:
     # tenants/api_credentials carry no row-level security (the tenant is not known yet); app_role can only read them.
-    with psycopg.connect(api_db_url(), connect_timeout=5) as conn:
+    with plain_connection() as conn:
         row = conn.execute(
             """
             SELECT c.credential_id, c.tenant_id, c.role, c.label
@@ -177,14 +277,14 @@ def client_id(request: Request | None) -> str:
 def _security_event(kind: str, client: str, detail: str = "") -> None:
     """Best-effort record of a failed sign-in; never blocks the response."""
     try:
-        with psycopg.connect(api_db_url(), connect_timeout=3) as conn:
+        with plain_connection() as conn:
             conn.execute("INSERT INTO security_events (kind, client, detail) VALUES (%s, %s, %s)", (kind, client[:64], detail[:200]))
     except Exception:
         logger.warning("Could not record security event %s", kind)
 
 
 def _lookup_claim(token: str) -> Principal | None:
-    with psycopg.connect(api_db_url(), connect_timeout=5) as conn:
+    with plain_connection() as conn:
         row = conn.execute("SELECT claim_id, tenant_id, decision_id, expires_at, revoked FROM lookup_claim(%s)", (hash_api_key(token),)).fetchone()
     if row is None:
         return None

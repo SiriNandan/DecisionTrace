@@ -16,8 +16,9 @@ import uuid
 import psycopg
 from pydantic import ValidationError
 
+from backend.consent import ai_summary_allowed
 from backend.contract import ReconstructionReport, ReconstructionStatus
-from recon_agent.backends import LLMBackend, get_llm_backend
+from recon_agent.backends import FakeLLMBackend, LLMBackend, get_llm_backend
 from recon_agent.guardrails import apply_claim_guardrails, check_narrative
 from recon_agent.recorded import build_recorded_report, correction_notes
 from recon_agent.tools import (
@@ -179,6 +180,10 @@ def reconstruct_decision(
     meta = _fetch_fallback_decision_meta(decision_id, resolved_db_url)
 
     active_backend = backend or get_llm_backend(backend_name)
+    if not ai_summary_allowed(decision_id, resolved_db_url) and getattr(active_backend, "backend_name", "") != "fake":
+        # Not allowed (the lender's policy, or the customer hasn't said yes): the explanation is built by the fixed,
+        # checkable steps alone, and no model is given anything from the record.
+        active_backend = FakeLLMBackend()
 
     # Decisions the lender made itself have nothing to re-score; explain them straight from the preserved record.
     if _recording_mode(decision_id, resolved_db_url) == "recorded":
@@ -255,7 +260,7 @@ def reconstruct_decision(
             ) + rejected
 
             # Optional LLM plain-language summary; kept only if it passes the same grounding checks.
-            if kept_reasons and raw_report.get("status", "ok") == "ok":
+            if kept_reasons and raw_report.get("status", "ok") == "ok" and ai_summary_allowed(decision_id, resolved_db_url):
                 try:
                     summary = active_backend.generate_summary(raw_report, session)
                 except Exception:

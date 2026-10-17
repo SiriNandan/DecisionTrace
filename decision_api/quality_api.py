@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field
 
 from backend.auth import Principal, log_access, require_scope, tenant_connection
 from backend.mapping_ai import default_llm
-from backend.quality import CorrectionConflict, append_correction, finding_status, load_corrections, scan
+from backend.crypto import Reveal
+from backend.quality import CorrectionConflict, append_correction, finding_status, load_corrections, open_finding, scan
 
 router = APIRouter()
 
@@ -28,17 +29,18 @@ class ResolveRequest(BaseModel):
     new_value: float | str | None = None
 
 
-def _row(r: tuple[Any, ...], status: str) -> dict[str, Any]:
-    return {
+def _row(r: tuple[Any, ...], status: str, reveal: Reveal | None = None) -> dict[str, Any]:
+    out = {
         "finding_id": int(r[0]), "decision_id": str(r[1]), "rule_id": r[2], "kind": r[3], "severity": r[4],
         "evidence_ref": r[5], "field": r[6], "observed": r[7].get("value") if isinstance(r[7], dict) else r[7],
         "message": r[8], "suggested_fix": r[9], "ai_note": r[10], "found_by": r[11], "created_at": r[12].isoformat(),
         "status": status,
     }
+    return open_finding(reveal, out, r[13]) if reveal is not None else out
 
 
 COLS = ("finding_id, decision_id, rule_id, kind, severity, evidence_ref, field, observed, message, suggested_fix, "
-        "ai_note, found_by, created_at")
+        "ai_note, found_by, created_at, enc_detail")
 
 
 @router.post("/v1/quality/run")
@@ -69,7 +71,8 @@ def list_findings(
             "ORDER BY CASE severity WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, finding_id DESC LIMIT %s",
             (principal.tenant_id, 2000),
         ).fetchall()
-    out = [_row(r[:13], str(r[13])) for r in rows]
+        reveal = Reveal(conn)
+        out = [_row(r[:14], str(r[14]), reveal) for r in rows]
     return [f for f in out if status == "all" or f["status"] == status][:limit]
 
 
@@ -82,7 +85,7 @@ def resolve_finding(
         row = conn.execute(f"SELECT {COLS} FROM quality_findings WHERE finding_id = %s", (finding_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="We couldn't find that item.")
-        finding = _row(row, "open")
+        finding = _row(row, "open", Reveal(conn))
         if finding_status(conn, finding_id) != "open":
             raise HTTPException(status_code=409, detail="This item was already dealt with.")
         correction = None

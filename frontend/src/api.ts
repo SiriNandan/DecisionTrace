@@ -10,6 +10,8 @@ import {
   DecisionSummaryItem,
   FindingItem,
   ClaimLinkCreated,
+  ConsentState,
+  DecisionsPage,
   ImportSummary,
   MappingProposal,
   MappingRecord,
@@ -19,6 +21,9 @@ import {
   QualityRunResult,
   ServiceHealth,
   SignalItem,
+  SealBatch,
+  SealCheck,
+  SealProof,
   SignalRunResult,
   ReconstructionReportContract,
   SourceData,
@@ -286,4 +291,42 @@ export async function fetchSignals(status: SignalItem["status"] | "all" = "open"
 
 export async function reviewSignal(signalId: number, action: "acknowledge" | "clear", note: string): Promise<{ signal_id: number; status: string }> {
   return postJson(`/v1/signals/${signalId}/review`, { action, note });
+}
+
+/* ---- Paging, seals and customer choices ---- */
+
+/** One page of decisions, newest first, and a marker for the next page (null on the last). */
+export async function fetchDecisionsPage(cursor?: string | null, limit = 100): Promise<DecisionsPage> {
+  if (isUseMocksEnabled()) {
+    return { items: await fetchDecisionsList(), next: null };
+  }
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (cursor) q.set("cursor", cursor);
+  const response = await send(`${getApiUrl()}/decisions?${q}`, { headers: authHeaders() });
+  const items = await parseJsonOrThrow<DecisionSummaryItem[]>(response);
+  return { items, next: response.headers?.get?.("X-Next-Cursor") ?? null };
+}
+
+export async function fetchDecisionSeal(decisionId: string): Promise<SealProof> {
+  return getJson<SealProof>(`/v1/decisions/${encodeURIComponent(decisionId)}/seal`);
+}
+
+export async function fetchSeals(): Promise<SealBatch[]> {
+  return getJson<SealBatch[]>("/v1/seals");
+}
+
+export async function runSeal(): Promise<{ sealed: boolean; batch: SealBatch | null; message: string }> {
+  return postJson("/v1/seals/run", {});
+}
+
+export async function checkSeals(): Promise<SealCheck> {
+  return getJson<SealCheck>("/v1/seals/verify");
+}
+
+export async function fetchConsents(decisionId: string): Promise<ConsentState> {
+  return getJson<ConsentState>(`/v1/decisions/${encodeURIComponent(decisionId)}/consents`);
+}
+
+export async function setAiSummaryChoice(decisionId: string, granted: boolean): Promise<ConsentState> {
+  return postJson<ConsentState>(`/v1/decisions/${encodeURIComponent(decisionId)}/consents/ai_summary`, { granted });
 }

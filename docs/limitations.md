@@ -30,6 +30,10 @@
 
 ---
 
+- **Update, sealing (not a finished fix)**: `backend/seals.py` and `backend/merkle.py` now seal batches of decision and correction fingerprints under an Ed25519 signature, with proofs checkable offline, and detect a changed record, a deleted batch, or a rewrite made without the signing key. This closes the gap **only if** the signing key is kept away from the database administrator and `DT_SEAL_PUBLISH_DIR` points at storage that administrator cannot rewrite. Not built: RFC 3161 timestamps or a transparency log, signing-key rotation, and a separate privileged sealing process. Corrections are covered by the seals (their chain heads are leaves), which also closes the earlier gap that deleting the last correction could not be noticed, once the batch containing it is sealed.
+
+---
+
 ## 4. Replay Needs the Original Artifact
 
 - **Dependency on Stored Model Parameters and Preprocessing**: Score replay (`replay_score` in `recon_agent/tools.py` and `score` in `backend/scoring.py`) reproduces the original decision score within `1e-9` only when both the decision-time feature snapshot (`model` / `application` / `bureau`) and the exact `model_registry` row (`coefficients`, `means`, `stds`, `intercept`, `feature_order`, `preprocessing_version`, `artifact_sha256`) remain intact.
@@ -46,6 +50,10 @@
   - **Re-identification Risk**: Under data protection frameworks (such as UK GDPR), pseudonymised financial snapshots (exact income, loan amount, debt service, credit score, and timestamps) remain personal data as long as a mapping table or auxiliary record can link `applicant_id` back to a natural person.
   - **Regex Redaction Boundaries**: Pattern-based redaction in `backend/redaction.py` catches structured email, phone, and NI tokens, but cannot guarantee removal of unstructured identifying details written in free text (e.g., employer names or unique personal circumstances).
   - **Immutable Chains vs. Physical Deletion**: Marking `evidence_status = 'erased_by_retention'` prevents `recon_agent` from reading or citing that snapshot (`status = 'evidence_unavailable'`), supporting audit of why an explanation is incomplete. However, if a data subject exercises a valid right to erasure requiring physical deletion of the underlying JSONB payload in `decision_snapshots`, overwriting or deleting that row will cause `payload_sha256` or `verify_chain` to fail unless the system separates encrypted PII blobs from the retained hash commitments (e.g., crypto-shredding per-snapshot keys while keeping the ciphertext hash intact).
+
+---
+
+- **Update, protected evidence**: for lenders with protection on, evidence is now stored encrypted under per-decision keys, and `python -m backend.crypto erase` destroys a decision's keys so the content becomes unreadable while the chain and seals keep verifying (`backend/crypto.py`, `tests/test_protected.py`). This answers the "separate encrypted blobs from the retained hash commitments" point above for new decisions at lenders that turn it on. Still true: the decision row keeps the outcome, score, dates, application reference and model/policy names; the demo (scored) decisions are not protected; keys come from one master secret rather than a key service; backups taken before an erasure, copies made elsewhere, and notes people typed before an erasure (overwritten at erasure, but readable until then) are not covered; and whether erasing content while keeping these fields meets a legal duty needs legal review.
 
 ---
 

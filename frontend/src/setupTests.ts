@@ -57,6 +57,12 @@ if (typeof globalThis.fetch === "undefined") {
               ok: status >= 200 && status < 300,
               status,
               statusText,
+              headers: {
+                get: (name: string): string | null => {
+                  const v = res.headers[name.toLowerCase()];
+                  return Array.isArray(v) ? v.join(", ") : v ?? null;
+                },
+              },
               text: async () => rawText,
               json: async () => JSON.parse(rawText),
             } as unknown as Response;

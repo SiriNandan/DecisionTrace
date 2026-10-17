@@ -10,6 +10,7 @@ from typing import Any
 
 import psycopg
 
+from backend.consent import ai_summary_allowed
 from backend.contract import ReconstructionReport
 from backend.quality import load_corrections
 from recon_agent.guardrails import check_narrative
@@ -121,6 +122,6 @@ def build_recorded_report(decision_id: str, db_url: str, backend: Any = None) ->
         "guardrail_rejections": 0,
         "status": "evidence_unavailable" if missing else "ok",
     }
-    if backend is not None and claims and not missing:
+    if backend is not None and claims and not missing and ai_summary_allowed(decision_id, db_url):
         _attach_summary(report, payload, ref, backend, db_url)
     return ReconstructionReport.model_validate(report)

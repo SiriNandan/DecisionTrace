@@ -11,4 +11,4 @@ All changes to `backend/contract.py` (`ReconstructionReport`, `RuleCheck`, `Reas
   - `Reason`: `claims` (`list[Claim]`).
   - `Claim`: `text`, `citation` (`evidence_ref` or policy section id), `field` (name in the cited item), `value` (the asserted value).
   - `Override`: `new_outcome`, `reason` (minimum 20 characters), `actor_role`, `created_at`.
-
+- Added optional `ReconstructionReport.plain_language_summary` (`str | None`, default `None`): LLM-written explanation, attached only if `check_narrative` finds every `[citation]` and number in this session's tool results; otherwise dropped and counted in `guardrail_rejections`. Backward compatible.

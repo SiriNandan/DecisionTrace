@@ -1,0 +1,71 @@
+name: ci
+on: [push, pull_request]
+
+env:
+  DB_URL: postgresql://decisiontrace:decisiontrace_local_dev@localhost:5433/decisiontrace
+  APP_DB_URL: postgresql://app_role:app_role_local_dev@localhost:5433/decisiontrace
+  LLM_BACKEND: fake
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: decisiontrace
+          POSTGRES_PASSWORD: decisiontrace_local_dev
+          POSTGRES_DB: decisiontrace
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U decisiontrace" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: decisiontrace
+          POSTGRES_PASSWORD: decisiontrace_local_dev
+          POSTGRES_DB: decisiontrace
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U decisiontrace" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: pip install -r requirements.txt
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend exec tsc -- -b
+      - run: npm --prefix frontend run build
+      - name: Seed database and start both APIs for the live-API Jest tests
+        run: |
+          python -m data.seed
+          nohup uvicorn decision_api.app:app --port 8000 > api8000.log 2>&1 &
+          nohup uvicorn recon_agent.app:app --port 8001 > api8001.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs "http://127.0.0.1:8000/decisions?limit=1" >/dev/null && break; sleep 1; done
+      - run: npm --prefix frontend test
+
+  audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # advisory until the first clean run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: pip install pip-audit && pip-audit -r requirements.txt
+      - run: npm --prefix frontend ci && npm --prefix frontend audit --omit=dev --audit-level=high

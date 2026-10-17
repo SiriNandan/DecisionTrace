@@ -7,9 +7,6 @@ from pathlib import Path
 import pytest
 
 from eval.run_eval import (
-    DEFAULT_HUMAN_RATING_ALIAS_CSV,
-    DEFAULT_HUMAN_RATING_CSV,
-    DEFAULT_RESULTS_MD,
     SEED,
     run_eval,
 )
@@ -21,12 +18,15 @@ def _read_csv_rows(csv_path: Path) -> list[dict[str, str]]:
     return list(csv.DictReader(lines))
 
 
-def test_run_eval_generates_results_md_and_30_human_rating_rows() -> None:
+def test_run_eval_generates_results_md_and_30_human_rating_rows(tmp_path: Path) -> None:
     """Verify run_eval executes deterministically and writes results.md and 30 CSV rows."""
+    results_md = tmp_path / "results.md"
+    human_csv = tmp_path / "human_rating_30_reports.csv"
     summary = run_eval(
         seed=SEED,
-        results_md_path=DEFAULT_RESULTS_MD,
-        human_csv_path=DEFAULT_HUMAN_RATING_CSV,
+        results_md_path=results_md,
+        human_csv_path=human_csv,
+        human_csv_alias_path=tmp_path / "human_rating.csv",
     )
 
     # 1. Completeness & untouched chain verification rate (target 100%)
@@ -75,19 +75,20 @@ def test_run_eval_generates_results_md_and_30_human_rating_rows() -> None:
     assert fairness["groups"]["B"]["count"] >= 300
 
     # 8. Verify 30-report CSV export for human rating (claim, source_text, supported)
-    assert DEFAULT_HUMAN_RATING_CSV.exists()
-    assert DEFAULT_HUMAN_RATING_ALIAS_CSV.exists()
-    csv_rows = _read_csv_rows(DEFAULT_HUMAN_RATING_CSV)
+    assert human_csv.exists()
+    assert (tmp_path / "human_rating.csv").exists()
+    csv_rows = _read_csv_rows(human_csv)
     assert len(csv_rows) == 30
-    assert list(csv_rows[0].keys()) == ["claim", "source_text", "supported"]
+    assert list(csv_rows[0].keys()) == ["claim", "source_text", "automated_check_passed", "human_supported"]
     for row in csv_rows:
         assert row["claim"].strip() != ""
         assert row["source_text"].strip() != ""
-        assert row["supported"].lower() in ("true", "false")
+        assert row["automated_check_passed"].lower() in ("true", "false")
+        assert row["human_supported"] == ""
 
     # 9. Verify eval/results.md exists and contains all required sections and governance wording
-    assert DEFAULT_RESULTS_MD.exists()
-    md_text = DEFAULT_RESULTS_MD.read_text(encoding="utf-8")
+    assert results_md.exists()
+    md_text = results_md.read_text(encoding="utf-8")
     assert "SYNTHETIC DATA - FOR DEMONSTRATION." in md_text
     assert "## 2. Completeness" in md_text
     assert "## 3. Hash-Chain Verification Rate" in md_text

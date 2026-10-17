@@ -262,6 +262,14 @@ class ReconstructionReport(BaseModel):
         default=None,
         description="Optional human override record if the initial outcome was overridden",
     )
+    plain_language_summary: str | None = Field(
+        default=None,
+        description=(
+            "Optional LLM-written plain-language explanation. Only present when every number and "
+            "[citation] in it was found in this session's tool results (runtime guardrail); "
+            "the structured fields remain the verified source of truth."
+        ),
+    )
     guardrail_rejections: int = Field(
         default=0,
         ge=0,

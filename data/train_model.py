@@ -218,7 +218,7 @@ To uphold feature governance rules, the following sensitive, demographic, and ev
 
 def train_and_register_model(
     csv_path: Path = DEFAULT_APPLICANTS_CSV,
-    model_card_path: Path = DEFAULT_MODEL_CARD_PATH,
+    model_card_path: Path | None = None,
     model_version: str | None = None,
     preprocessing_version: str = DEFAULT_PREPROCESSING_VERSION,
     seed: int = DEFAULT_SEED,
@@ -226,6 +226,8 @@ def train_and_register_model(
     db_url: str | None = None,
 ) -> dict[str, Any]:
     """Train StandardScaler + LogisticRegression on 80/20 split, register model, and write model_card.md."""
+    if model_card_path is None:
+        model_card_path = Path(os.environ.get("DT_MODEL_CARD_PATH") or DEFAULT_MODEL_CARD_PATH)
     resolved_model_version = model_version or os.environ.get("MODEL_VERSION", "loan_lr_v1")
     feature_order = list(FEATURE_ORDER)
 

@@ -24,6 +24,9 @@ docker compose exec postgres psql -U decisiontrace -d decisiontrace -c "SELECT 1
 # 2. DATA GENERATION, POLICY LOADING, MODEL TRAINING & SCENARIO SEEDING
 # ==============================================================================
 
+# Shortcut for everything below that touches the database (create DB, migrate, policies, model, scenarios):
+.\.venv\Scripts\python.exe -m data.seed          # add --reset to rebuild the database
+
 # Generate 2,000 deterministic synthetic applicants, bureau snapshots, and accounts
 .\.venv\Scripts\python.exe -m data.generate_applicants
 
@@ -61,7 +64,7 @@ docker compose exec postgres psql -U decisiontrace -d decisiontrace -c "SELECT 1
 .\.venv\Scripts\pytest.exe tests/test_policies.py -v
 
 # A5: Supporting documents & PII redaction
-.\.venv\Scripts\pytest.exe tests/test_redaction_and_documents.py -v
+.\.venv\Scripts\pytest.exe tests/test_documents_and_redaction.py -v
 
 # A6: Canonical scenarios (S1-S10)
 .\.venv\Scripts\pytest.exe tests/test_scenarios.py -v
@@ -70,7 +73,7 @@ docker compose exec postgres psql -U decisiontrace -d decisiontrace -c "SELECT 1
 .\.venv\Scripts\pytest.exe tests/test_fairness.py -v
 
 # B1: Model training, registry & 1e-9 predict_proba score match
-.\.venv\Scripts\pytest.exe tests/test_model_scoring.py -v
+.\.venv\Scripts\pytest.exe tests/test_train_and_scoring.py -v
 
 # B2: Canonical JSON & SHA-256 hash-chain tamper detection
 .\.venv\Scripts\pytest.exe tests/test_integrity.py -v
@@ -88,7 +91,7 @@ docker compose exec postgres psql -U decisiontrace -d decisiontrace -c "SELECT 1
 .\.venv\Scripts\pytest.exe tests/test_recon_agent.py -v
 
 # B7: Append-only human overrides & byte-identical snapshot preservation
-.\.venv\Scripts\pytest.exe tests/test_overrides.py -v
+.\.venv\Scripts\pytest.exe tests/test_decision_api.py -v
 
 # B9: End-to-end evaluation suite & CSV/Markdown report generation
 .\.venv\Scripts\pytest.exe tests/test_run_eval.py -v

@@ -3,7 +3,7 @@
  * Uses VITE_API_URL by default; consults src/mocks ONLY when VITE_USE_MOCKS=true.
  */
 
-import { getApiUrl, isUseMocksEnabled } from "./config";
+import { getApiKey, getApiUrl, isUseMocksEnabled } from "./config";
 import {
   CreateOverridePayload,
   DecisionDetailRecord,
@@ -92,7 +92,10 @@ export async function submitDecisionOverride(
   const baseUrl = getApiUrl();
   const response = await fetch(`${baseUrl}/overrides`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(getApiKey() ? { "X-API-Key": getApiKey() } : {}),
+    },
     body: JSON.stringify({
       decision_id: payload.decision_id,
       new_outcome: payload.new_outcome,
@@ -120,7 +123,10 @@ export async function fetchReconstructionReport(
     `${baseUrl}/reconstruct/${encodeURIComponent(decisionId)}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(getApiKey() ? { "X-API-Key": getApiKey() } : {}),
+      },
     }
   );
   return parseJsonOrThrow<ReconstructionReportContract>(response);

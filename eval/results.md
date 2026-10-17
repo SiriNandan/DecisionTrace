@@ -6,10 +6,13 @@
 
 ## 1. Executive Summary & Evaluation Configuration
 
+- **LLM Backend**: `fake` (deterministic code, **not an LLM**; metrics below do not measure LLM quality)
+- **Claims Proposed / Kept / Rejected by Guardrail (n=30 untouched)**: `198` / `198` / `0`. Grounding rates below are computed on **kept** claims (post-guardrail), so they are high by construction; the pre-guardrail rejection count is the LLM-quality signal.
+- **Plain-Language Summaries Attached (passed guardrail)**: `0` of `30` untouched reports
 - **Random Seed**: `42` (deterministic seeding & sampling)
 - **Total Decisions Evaluated**: `32` (`30` untouched decisions + `2` tamper-test scenarios)
 - **Named Benchmark Scenarios**: `10` (`clear_decline`, `clear_approve`, `boundary_dti_old_policy`, `boundary_dti_new_policy`, `missing_payslip_referral`, `manual_review_rule_2026`, `override_case`, `tampered_payload`, `deleted_final_row`, `erased_evidence`)
-- **Human Rating Export**: `30` reports exported to `eval/human_rating_30_reports.csv` (and `eval/human_rating.csv`) with columns `(claim, source_text, supported)`
+- **Human Rating Export**: `30` reports exported to `eval/human_rating_30_reports.csv` (and `eval/human_rating.csv`) with columns `(claim, source_text, automated_check_passed, human_supported)`. `automated_check_passed` is the code's own check against the same snapshots (not a human rating); `human_supported` is blank until a person rates it (**Not evidenced** until then)
 
 | Evaluation Dimension | Metric / Target | Measured Value | Status |
 | :--- | :--- | :--- | :--- |
@@ -22,7 +25,7 @@
 | **Claim Support (Value Matches Cited Field)** | Target: 100.0% field/value match | **100.00%** (`198/198`) | PASS |
 | **Numerical Accuracy (Reported Separately)** | Target: 100.0% grounded numbers | **100.00%** (`198/198`) | PASS |
 | **Guardrail Rejections (Clean / Probe)** | 0 on clean; 100% on injected | **0** clean / **4/4** probe | PASS |
-| **Reconstruction Latency (Median / p95)** | `< 30,000 ms` budget | **Median: 1201.67 ms** / **p95: 1682.09 ms** | PASS |
+| **Reconstruction Latency (Median / p95)** | `< 30,000 ms` budget | **Median: 76.47 ms** / **p95: 89.44 ms** | PASS |
 | **Fairness Disparity Detection (`eval/fairness.py`)** | Detect Group A vs B gap (`> 0.15`) | **Diff: 0.3050**, **Ratio: 0.4895** | PASS |
 
 ---
@@ -64,9 +67,9 @@ To test tamper-evidence without mutating the 30 untouched evaluation records, `e
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1. Untouched DB Copy Baseline** | All `30` untouched IDs | Exact copy of `decisions` & `decision_snapshots` | `True` (`30/30`) | `None` | `None` | Baseline Valid |
 | **2. Alter Stored Payload (DB Copy)** | `920511af-29a7-56b1-aa32-63c59025ad32` | `UPDATE` `seq=1` JSONB `dti_ratio` to `0.99` | `False` | `1` | `payload_sha256 mismatch at seq 1` | **True** |
-| **3. Delete Final Row (DB Copy)** | `1fdf208b-41fe-59e9-9970-af76ac2a7abc` | `DELETE` final snapshot row (`seq=chain_length`) | `False` | `12` | `snapshot_count 11 != expected chain_length 12 and chain_head mismatch (d7cad5b329e83442f790e3b6e82edc029a15d07166b6cf48508ed3a8c3733021 != 00fd71219d1f695c465dc9285b89d9677769c3db024179ec37427405566fa617)` | **True** |
+| **3. Delete Final Row (DB Copy)** | `1fdf208b-41fe-59e9-9970-af76ac2a7abc` | `DELETE` final snapshot row (`seq=chain_length`) | `False` | `12` | `snapshot_count 11 != expected chain_length 12 and chain_head mismatch (cee86fd332f192f49dee7d09cb812b787f1b1265e73f83d5fde6af7ea60eee72 != 6ac60656067a50779ef8a8bbe29a246deddd29782b3bc3e4ba98368711243154)` | **True** |
 | **4. Seeded `tampered_payload` Scenario** | `0e589c38-598d-512f-92ec-ff7ebdd7f90c` | Stored `seq=1` payload altered post-decision | `False` | `1` | `payload_sha256 mismatch at seq 1` | **True** |
-| **5. Seeded `deleted_final_row` Scenario** | `f92743e4-af05-5410-8afe-81d938538837` | Final snapshot row (`seq=13`) deleted | `False` | `13` | `snapshot_count 11 != expected chain_length 12 and chain_head mismatch (48811b69ec47d64a9aa14606dddf16c6f9724a6435c9e365e913d8e9bb2af593 != c0c321503101ad21ea4d17a608ca20d98cbdaf299446ddfff0a584948d251f5a)` | **True** |
+| **5. Seeded `deleted_final_row` Scenario** | `f92743e4-af05-5410-8afe-81d938538837` | Final snapshot row (`seq=13`) deleted | `False` | `13` | `snapshot_count 11 != expected chain_length 12 and chain_head mismatch (00209bec61047d8855bf206b5a61a3165471640837c08d964634d2eac5a466c7 != 6ccad3dc59ef66ccb5505ed620ab039b26e5576b6b15ffc2237eb1695f656ebf)` | **True** |
 
 ---
 
@@ -107,26 +110,19 @@ Measured across `32` full decision reconstructions (`8` preserved-snapshot tool 
 
 | Latency Percentile / Statistic | Milliseconds (ms) | Seconds (s) |
 | :--- | :--- | :--- |
-| **Median (p50)** | **1201.67 ms** | `1.2017 s` |
-| **p95** | **1682.09 ms** | `1.6821 s` |
-| **Mean** | `1243.39 ms` | `1.2434 s` |
-| **Min** | `889.98 ms` | `0.8900 s` |
-| **Max** | `1785.42 ms` | `1.7854 s` |
+| **Median (p50)** | **76.47 ms** | `0.0765 s` |
+| **p95** | **89.44 ms** | `0.0894 s` |
+| **Mean** | `77.17 ms` | `0.0772 s` |
+| **Min** | `70.87 ms` | `0.0709 s` |
+| **Max** | `93.85 ms` | `0.0938 s` |
 
 ---
 
-## 9. Manual vs. Tool Timing Table (Manual Column Filled by Hand)
+## 9. Manual vs. Tool Timing Table (Manual Baseline: Not Evidenced)
 
-The manual column below records hand-timed audit reconstruction measurements performed by an analyst inspecting PostgreSQL snapshots, recomputing SHA-256 hashes, re-scoring the logistic regression model, and cross-checking policy citations by hand:
+**Not evidenced.** No manual audit-reconstruction timing study has been run, so no manual baseline or speed-up factor is claimed. Only the measured tool latency from Section 8 is evidence.
 
-| Audit Reconstruction Step | Manual Time (Hand-Filled Baseline) | DecisionTrace Tool Time (Median) | DecisionTrace Tool Time (p95) | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| 1. Locate decision record & effective policy version as of decided_at | **180.0 s** (`3.0 min`) | `144.20 ms` (`0.1442 s`) | `201.85 ms` (`0.2019 s`) | Hand-timed: query decisions table, check effective_from/effective_to date windows in policies |
-| 2. Gather 9 decision-time snapshots (application, bureau, account, docs, consent, note) | **420.0 s** (`7.0 min`) | `336.47 ms` (`0.3365 s`) | `470.98 ms` (`0.4710 s`) | Hand-timed: retrieve and inspect 9 JSONB payloads and check evidence_status retention log |
-| 3. Recompute and verify SHA-256 hash chain (payload_sha256, prev_hash, entry_hash, head) | **300.0 s** (`5.0 min`) | `240.33 ms` (`0.2403 s`) | `336.42 ms` (`0.3364 s`) | Hand-timed: canonicalize JSON payloads, verify sequential prev_hash links and chain_head |
-| 4. Replay standardized LogisticRegression score from model_registry | **240.0 s** (`4.0 min`) | `192.27 ms` (`0.1923 s`) | `269.13 ms` (`0.2691 s`) | Hand-timed: apply stored means/stds/coefficients/intercept and compare within 1e-9 |
-| 5. Cross-check rule checks & draft cited explanation report with field/value verification | **360.0 s** (`6.0 min`) | `288.40 ms` (`0.2884 s`) | `403.70 ms` (`0.4037 s`) | Hand-timed: verify each claim's citation, field name, and exact value against snapshots |
-| **Total Per-Decision Reconstruction** | **1500.0 s (`25.0 min`)** | **1201.67 ms (`1.2017 s`)** | **1682.09 ms (`1.6821 s`)** | **~1,248x faster** with automated hash & replay verification |
+- Measured tool latency per decision (backend `fake`): median **76.47 ms**, p95 **89.44 ms**.
 
 ---
 
@@ -147,8 +143,8 @@ Evaluated over the synthetic fairness scenario cohort (`data/fairness_groups.csv
 
 ---
 
-## 11. Human Rating CSV Export (`30` Reports)
+## 11. Human Rating CSV Export (`30` Reports; Human Ratings Not Evidenced)
 
 - **Exported File**: `eval/human_rating_30_reports.csv` (alias: `eval/human_rating.csv`)
 - **Row Count**: `30` reports (one primary grounded claim per reconstructed report across the 30 untouched decisions)
-- **Columns**: `claim, source_text, supported`
+- **Columns**: `claim, source_text, automated_check_passed, human_supported` (`human_supported` is intentionally blank: no human rating has been performed - **Not evidenced**)

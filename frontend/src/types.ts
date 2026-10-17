@@ -53,6 +53,7 @@ export interface ReconstructionReportContract {
   reasons: ReasonContract[];
   policy_note: string;
   human_override: OverrideContract | null;
+  plain_language_summary?: string | null;
   guardrail_rejections: number;
   status: ReconstructionStatus;
 }

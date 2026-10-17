@@ -9,9 +9,9 @@ Computes and reports:
 5. Citation validity, claim support (value matches the cited field), and numerical accuracy (reported separately)
 6. Guardrail rejections (on standard runs and adversarial unsupported-claim injection probe)
 7. Median (p50) and p95 reconstruction latency
-8. Manual vs. tool timing table (manual column filled by hand)
+8. Manual vs. tool timing (manual baseline: Not evidenced; only measured tool latency reported)
 9. Fairness evaluation (from eval/fairness.py)
-10. Exports 30 reports to CSV (claim, source_text, supported) for human rating
+10. Exports 30 reports to CSV (automated check result + blank human_supported column to fill by hand)
 11. Writes eval/results.md
 """
 
@@ -23,7 +23,6 @@ import json
 import math
 from pathlib import Path
 import random
-import re
 import statistics
 import sys
 import time
@@ -48,6 +47,10 @@ from data.seed_scenarios import (
 )
 from decision_api.service import create_decision
 from eval.fairness import evaluate_fairness_from_files
+from recon_agent.guardrails import (
+    apply_claim_guardrails,
+    evaluate_claim_grounding,
+)
 from recon_agent.service import reconstruct_decision
 from recon_agent.tools import DEFAULT_REPLAY_TOLERANCE, ToolSession
 
@@ -64,148 +67,6 @@ DEFAULT_HUMAN_RATING_ALIAS_CSV = DEFAULT_HUMAN_CSV_ALIAS_PATH
 FIXED_SEED = 42
 SEED = FIXED_SEED
 TARGET_UNTOUCHED_REPORTS = 30
-
-# Hand-timed manual audit reconstruction baseline (in seconds) per step
-MANUAL_TIMING_BASELINE: list[dict[str, Any]] = [
-    {
-        "step": "1. Locate decision record & effective policy version as of decided_at",
-        "manual_seconds": 180.0,
-        "manual_notes": "Hand-timed: query decisions table, check effective_from/effective_to date windows in policies",
-    },
-    {
-        "step": "2. Gather 9 decision-time snapshots (application, bureau, account, docs, consent, note)",
-        "manual_seconds": 420.0,
-        "manual_notes": "Hand-timed: retrieve and inspect 9 JSONB payloads and check evidence_status retention log",
-    },
-    {
-        "step": "3. Recompute and verify SHA-256 hash chain (payload_sha256, prev_hash, entry_hash, head)",
-        "manual_seconds": 300.0,
-        "manual_notes": "Hand-timed: canonicalize JSON payloads, verify sequential prev_hash links and chain_head",
-    },
-    {
-        "step": "4. Replay standardized LogisticRegression score from model_registry",
-        "manual_seconds": 240.0,
-        "manual_notes": "Hand-timed: apply stored means/stds/coefficients/intercept and compare within 1e-9",
-    },
-    {
-        "step": "5. Cross-check rule checks & draft cited explanation report with field/value verification",
-        "manual_seconds": 360.0,
-        "manual_notes": "Hand-timed: verify each claim's citation, field name, and exact value against snapshots",
-    },
-]
-
-
-def _extract_numbers_from_text(text: str) -> list[float]:
-    """Extract numeric literals from a claim text string while ignoring identifier tokens and section numbers."""
-    # Strip known identifier patterns (e.g., APP-0011, LOAN-SCEN-0001, LP-2026-v1, loan_lr_v1, 24m)
-    cleaned = re.sub(r"\b[A-Za-z_]+-\d+(?:-[A-Za-z0-9]+)*\b", " ", text)
-    cleaned = re.sub(r"\b[A-Za-z0-9_]+_v\d+\b", " ", cleaned)
-    cleaned = re.sub(r"\b\d+m\b", " ", cleaned)
-    # Strip quoted policy section titles like '3.2 Debt-to-income limit' or (3.2 Debt-to-income limit)
-    cleaned = re.sub(r"\b\d+\.\d+\s+[A-Z][A-Za-z\s\-]+", " ", cleaned)
-
-    matches = re.findall(r"(?<![A-Za-z0-9_.-])-?\d+(?:\.\d+)?(?![A-Za-z0-9_])", cleaned)
-    nums: list[float] = []
-    for m in matches:
-        try:
-            val = float(m)
-            if math.isfinite(val):
-                nums.append(val)
-        except ValueError:
-            continue
-    return nums
-
-
-def _number_matches_set(val: float, allowed_numbers: set[float], tol: float = 1e-6) -> bool:
-    for candidate in allowed_numbers:
-        if abs(val - candidate) <= tol:
-            return True
-    return False
-
-
-def _values_equal(val_a: Any, val_b: Any, tol: float = 1e-9) -> bool:
-    if isinstance(val_a, bool) or isinstance(val_b, bool):
-        return bool(val_a) is bool(val_b)
-    if isinstance(val_a, (int, float)) and isinstance(val_b, (int, float)):
-        return abs(float(val_a) - float(val_b)) <= tol
-    return str(val_a) == str(val_b)
-
-
-def evaluate_claim_grounding(
-    claim_dict: dict[str, Any],
-    session: ToolSession,
-) -> dict[str, Any]:
-    """Evaluate a single Claim for citation validity, claim support (field/value match), and numerical accuracy."""
-    citation = str(claim_dict.get("citation", ""))
-    field = str(claim_dict.get("field", ""))
-    value = claim_dict.get("value")
-    text = str(claim_dict.get("text", ""))
-
-    # 1. Citation validity: citation must be in session.returned_ids and not in session.erased_ids
-    citation_valid = (
-        bool(citation)
-        and citation in session.returned_ids
-        and citation not in session.erased_ids
-    )
-
-    # 2. Claim support: cited item has `field` and its stored value equals `claim.value`
-    cited_item = session.returned_items_by_id.get(citation)
-    claim_supported = False
-    source_text = ""
-    if citation_valid and isinstance(cited_item, dict):
-        source_text = json.dumps(cited_item, sort_keys=True)
-        if field in cited_item and _values_equal(cited_item[field], value):
-            claim_supported = True
-
-    # 3. Numerical accuracy: any numeric value in `value` and `text` appears in session.returned_numbers
-    extracted_nums = _extract_numbers_from_text(text)
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        extracted_nums.append(float(value))
-
-    if not extracted_nums:
-        numerical_accurate = True
-    else:
-        numerical_accurate = all(
-            _number_matches_set(num, session.returned_numbers) for num in extracted_nums
-        )
-
-    return {
-        "citation": citation,
-        "field": field,
-        "value": value,
-        "text": text,
-        "citation_valid": citation_valid,
-        "claim_supported": claim_supported,
-        "numerical_accurate": numerical_accurate,
-        "source_text": source_text,
-    }
-
-
-def apply_claim_guardrails(
-    raw_reasons: list[dict[str, Any]],
-    session: ToolSession,
-) -> tuple[list[dict[str, Any]], int]:
-    """Filter out unsupported claims using ToolSession state and count guardrail rejections."""
-    kept_reasons: list[dict[str, Any]] = []
-    rejected_count = 0
-
-    for reason_group in raw_reasons:
-        kept_claims: list[dict[str, Any]] = []
-        for claim in reason_group.get("claims", []):
-            eval_res = evaluate_claim_grounding(claim, session)
-            if (
-                eval_res["citation_valid"]
-                and eval_res["claim_supported"]
-                and eval_res["numerical_accurate"]
-            ):
-                kept_claims.append(claim)
-            else:
-                rejected_count += 1
-        if kept_claims:
-            kept_reasons.append({"claims": kept_claims})
-
-    return kept_reasons, rejected_count
-
 
 def seed_additional_evaluation_decisions(
     conn: psycopg.Connection[Any],
@@ -452,13 +313,15 @@ def run_guardrail_probe(session: ToolSession, sample_valid_claim: dict[str, Any]
 def export_human_rating_csv(
     rows_for_export: list[dict[str, str]],
     csv_path: Path = DEFAULT_HUMAN_CSV_PATH,
-    alias_path: Path = DEFAULT_HUMAN_CSV_ALIAS_PATH,
+    alias_path: Path | None = DEFAULT_HUMAN_CSV_ALIAS_PATH,
 ) -> Path:
-    """Export 30 reports to CSV with columns (claim, source_text, supported) for human rating."""
+    """Export 30 reports to CSV. `automated_check_passed` is the code's own grounding check
+    (same snapshots the claims were generated from), NOT a human rating; `human_supported` is
+    left blank for a person to fill in."""
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = ["claim", "source_text", "supported"]
+    fieldnames = ["claim", "source_text", "automated_check_passed", "human_supported"]
 
-    for target in (csv_path, alias_path):
+    for target in [t for t in (csv_path, alias_path) if t is not None]:
         with target.open("w", encoding="utf-8", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
@@ -467,7 +330,8 @@ def export_human_rating_csv(
                     {
                         "claim": r["claim"],
                         "source_text": r["source_text"],
-                        "supported": r["supported"],
+                        "automated_check_passed": r["supported"],
+                        "human_supported": "",
                     }
                 )
     return csv_path
@@ -507,10 +371,14 @@ def format_results_markdown(summary: dict[str, Any]) -> str:
         "",
         "## 1. Executive Summary & Evaluation Configuration",
         "",
+        f"- **LLM Backend**: `{summary['backend']}`"
+        + (" (deterministic code, **not an LLM**; metrics below do not measure LLM quality)" if summary["backend"] == "fake" else ""),
+        f"- **Claims Proposed / Kept / Rejected by Guardrail (n=30 untouched)**: `{summary['grounding']['total_claims'] + summary['guardrails']['clean_runs_total_rejections']}` / `{summary['grounding']['total_claims']}` / `{summary['guardrails']['clean_runs_total_rejections']}`. Grounding rates below are computed on **kept** claims (post-guardrail), so they are high by construction; the pre-guardrail rejection count is the LLM-quality signal.",
+        f"- **Plain-Language Summaries Attached (passed guardrail)**: `{summary['summaries_attached']}` of `{summary['untouched_decisions_count']}` untouched reports",
         f"- **Random Seed**: `{summary['seed']}` (deterministic seeding & sampling)",
         f"- **Total Decisions Evaluated**: `{summary['total_decisions_evaluated']}` (`{summary['untouched_decisions_count']}` untouched decisions + `{summary['tampered_scenarios_count']}` tamper-test scenarios)",
         f"- **Named Benchmark Scenarios**: `10` (`clear_decline`, `clear_approve`, `boundary_dti_old_policy`, `boundary_dti_new_policy`, `missing_payslip_referral`, `manual_review_rule_2026`, `override_case`, `tampered_payload`, `deleted_final_row`, `erased_evidence`)",
-        f"- **Human Rating Export**: `{summary['human_rating_exported_count']}` reports exported to `eval/human_rating_30_reports.csv` (and `eval/human_rating.csv`) with columns `(claim, source_text, supported)`",
+        f"- **Human Rating Export**: `{summary['human_rating_exported_count']}` reports exported to `eval/human_rating_30_reports.csv` (and `eval/human_rating.csv`) with columns `(claim, source_text, automated_check_passed, human_supported)`. `automated_check_passed` is the code's own check against the same snapshots (not a human rating); `human_supported` is blank until a person rates it (**Not evidenced** until then)",
         "",
         "| Evaluation Dimension | Metric / Target | Measured Value | Status |",
         "| :--- | :--- | :--- | :--- |",
@@ -616,32 +484,11 @@ def format_results_markdown(summary: dict[str, Any]) -> str:
             "",
             "---",
             "",
-            "## 9. Manual vs. Tool Timing Table (Manual Column Filled by Hand)",
+            "## 9. Manual vs. Tool Timing Table (Manual Baseline: Not Evidenced)",
             "",
-            "The manual column below records hand-timed audit reconstruction measurements performed by an analyst inspecting PostgreSQL snapshots, recomputing SHA-256 hashes, re-scoring the logistic regression model, and cross-checking policy citations by hand:",
+            "**Not evidenced.** No manual audit-reconstruction timing study has been run, so no manual baseline or speed-up factor is claimed. Only the measured tool latency from Section 8 is evidence.",
             "",
-            "| Audit Reconstruction Step | Manual Time (Hand-Filled Baseline) | DecisionTrace Tool Time (Median) | DecisionTrace Tool Time (p95) | Notes |",
-            "| :--- | :--- | :--- | :--- | :--- |",
-        ]
-    )
-
-    total_manual_s = sum(item["manual_seconds"] for item in MANUAL_TIMING_BASELINE)
-    for item in MANUAL_TIMING_BASELINE:
-        share = item["manual_seconds"] / total_manual_s
-        step_median_ms = latency["median_ms"] * share
-        step_p95_ms = latency["p95_ms"] * share
-        lines.append(
-            f"| {item['step']} | **{item['manual_seconds']:.1f} s** (`{item['manual_seconds'] / 60.0:.1f} min`) | "
-            f"`{step_median_ms:.2f} ms` (`{step_median_ms / 1000.0:.4f} s`) | "
-            f"`{step_p95_ms:.2f} ms` (`{step_p95_ms / 1000.0:.4f} s`) | {item['manual_notes']} |"
-        )
-
-    speedup = total_manual_s / max(latency["median_s"], 1e-6)
-    lines.extend(
-        [
-            f"| **Total Per-Decision Reconstruction** | **{total_manual_s:.1f} s (`{total_manual_s / 60.0:.1f} min`)** | "
-            f"**{latency['median_ms']:.2f} ms (`{latency['median_s']:.4f} s`)** | "
-            f"**{latency['p95_ms']:.2f} ms (`{latency['p95_s']:.4f} s`)** | **~{speedup:,.0f}x faster** with automated hash & replay verification |",
+            f"- Measured tool latency per decision (backend `{summary['backend']}`): median **{latency['median_ms']:.2f} ms**, p95 **{latency['p95_ms']:.2f} ms**.",
             "",
             "---",
             "",
@@ -662,16 +509,24 @@ def format_results_markdown(summary: dict[str, Any]) -> str:
             "",
             "---",
             "",
-            "## 11. Human Rating CSV Export (`30` Reports)",
+            "## 11. Human Rating CSV Export (`30` Reports; Human Ratings Not Evidenced)",
             "",
             f"- **Exported File**: `{summary['human_rating_csv_path']}` (alias: `{summary['human_rating_csv_alias_path']}`)",
             f"- **Row Count**: `{summary['human_rating_exported_count']}` reports (one primary grounded claim per reconstructed report across the 30 untouched decisions)",
-            "- **Columns**: `claim, source_text, supported`",
+            "- **Columns**: `claim, source_text, automated_check_passed, human_supported` (`human_supported` is intentionally blank: no human rating has been performed - **Not evidenced**)",
             "",
         ]
     )
 
     return "\n".join(lines)
+
+
+def _display_path(path: Path) -> str:
+    """Repo-relative path when inside the repo, else the absolute path."""
+    try:
+        return str(path.relative_to(ROOT_DIR)).replace("\\", "/")
+    except ValueError:
+        return str(path)
 
 
 def run_eval(
@@ -681,6 +536,8 @@ def run_eval(
     results_md_path: Path = DEFAULT_RESULTS_MD_PATH,
     human_csv_path: Path = DEFAULT_HUMAN_CSV_PATH,
     seed: int = FIXED_SEED,
+    backend_name: str = "fake",
+    human_csv_alias_path: Path | None = DEFAULT_HUMAN_CSV_ALIAS_PATH,
 ) -> dict[str, Any]:
     """Run the full deterministic evaluation suite, export the 30-report CSV, and write eval/results.md."""
     random.seed(seed)
@@ -718,7 +575,7 @@ def run_eval(
         t0 = time.perf_counter()
         report, session = reconstruct_decision(
             dec_id,
-            backend_name="fake",
+            backend_name=backend_name,
             db_url=target_db_url,
             return_session=True,
         )
@@ -761,7 +618,7 @@ def run_eval(
         t0 = time.perf_counter()
         report, session = reconstruct_decision(
             dec_id,
-            backend_name="fake",
+            backend_name=backend_name,
             db_url=target_db_url,
             return_session=True,
         )
@@ -973,11 +830,12 @@ def run_eval(
     exported_csv = export_human_rating_csv(
         human_rating_rows,
         csv_path=human_csv_path,
-        alias_path=DEFAULT_HUMAN_CSV_ALIAS_PATH,
+        alias_path=human_csv_alias_path,
     )
 
     summary = {
         "seed": seed,
+        "backend": backend_name,
         "total_decisions_evaluated": len(untouched_records) + len(tampered_records),
         "untouched_decisions_count": len(untouched_records),
         "tampered_scenarios_count": len(tampered_records),
@@ -987,15 +845,19 @@ def run_eval(
         "replay": replay_summary,
         "grounding": grounding_summary,
         "guardrails": guardrails_summary,
+        "summaries_attached": sum(
+            1 for r in untouched_records if r["report"].plain_language_summary
+        ),
         "latency": latency_summary,
-        "manual_vs_tool_timing": MANUAL_TIMING_BASELINE,
         "fairness": fairness_report,
         "scenario_rows": scenario_rows,
         "human_rating_exported_count": len(human_rating_rows[:TARGET_UNTOUCHED_REPORTS]),
-        "human_rating_csv_path": str(exported_csv.relative_to(ROOT_DIR)).replace("\\", "/"),
-        "human_rating_csv_alias_path": str(
-            DEFAULT_HUMAN_CSV_ALIAS_PATH.relative_to(ROOT_DIR)
-        ).replace("\\", "/"),
+        "human_rating_csv_path": _display_path(exported_csv),
+        "human_rating_csv_alias_path": (
+            _display_path(human_csv_alias_path)
+            if human_csv_alias_path is not None
+            else None
+        ),
     }
 
     # 13. Write eval/results.md
@@ -1007,7 +869,23 @@ def run_eval(
 
 
 def main() -> None:
-    summary = run_eval()
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser(description="Run the DecisionTrace evaluation suite")
+    parser.add_argument("--backend", default=os.environ.get("LLM_BACKEND", "fake"),
+                        choices=["fake", "gemini_api"])
+    args = parser.parse_args()
+    if args.backend == "fake":
+        summary = run_eval()
+    else:
+        # Never overwrite the fake-backend artifacts with LLM runs.
+        summary = run_eval(
+            backend_name=args.backend,
+            results_md_path=EVAL_DIR / f"results_{args.backend}.md",
+            human_csv_path=EVAL_DIR / f"human_rating_{args.backend}.csv",
+            human_csv_alias_path=None,
+        )
     print(f"Seed: {summary['seed']}")
     print(
         f"Untouched Chain Verification Rate: "

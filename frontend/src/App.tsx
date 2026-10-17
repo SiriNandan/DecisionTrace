@@ -1,14 +1,23 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   fetchDecisionRecord,
   fetchDecisionsList,
   fetchReconstructionReport,
   submitDecisionOverride,
 } from "./api";
-import CaseList from "./components/CaseList";
-import DecisionRecord from "./components/DecisionRecord";
-import ReconstructionReport from "./components/ReconstructionReport";
+import DecisionView from "./components/DecisionView";
+import HomeView from "./components/HomeView";
+import { ErrorBoundary, OfflineBar, SiteFooter, SiteNav } from "./components/SiteChrome";
 import SyntheticBanner from "./components/SyntheticBanner";
+import WelcomeDialog from "./components/WelcomeDialog";
+import { isDemoFixture } from "./lib/plain";
+import { navigate, readRoute, Route } from "./lib/router";
+import { applyTheme, markTourSeen, readActivity, readTheme, Theme, tourSeen, track } from "./lib/usage";
+import AboutPage from "./pages/AboutPage";
+import HelpPage from "./pages/HelpPage";
+import InsightsPage from "./pages/InsightsPage";
+import LegalPage from "./pages/LegalPage";
+import NotFoundPage from "./pages/NotFoundPage";
 import {
   CreateOverridePayload,
   DecisionDetailRecord,
@@ -16,177 +25,212 @@ import {
   ReconstructionReportContract,
 } from "./types";
 
+const RECENT_KEY = "clearly:last-decision";
+
+const readRecent = (): { id: string; label: string } | null => {
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    return raw ? (JSON.parse(raw) as { id: string; label: string }) : null;
+  } catch {
+    return null;
+  }
+};
+
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+const TITLES: Record<string, string> = {
+  home: "Loan decisions, explained",
+  about: "How it works",
+  help: "Help",
+  insights: "Insights",
+  privacy: "Privacy",
+  terms: "Terms of use",
+  accessibility: "Accessibility",
+  notfound: "Page not found",
+  decision: "Your decision, explained",
+};
+
 export const App: React.FC = () => {
-  const [cases, setCases] = useState<DecisionSummaryItem[]>([]);
-  const [loadingCases, setLoadingCases] = useState<boolean>(true);
+  const [route, setRoute] = useState<Route>(() => readRoute());
+  const [allCases, setAllCases] = useState<DecisionSummaryItem[]>([]);
+  const [loadingCases, setLoadingCases] = useState(true);
   const [casesError, setCasesError] = useState<string | null>(null);
 
-  const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(
-    null
-  );
-  const [decisionRecord, setDecisionRecord] =
-    useState<DecisionDetailRecord | null>(null);
-  const [loadingRecord, setLoadingRecord] = useState<boolean>(false);
+  const [record, setRecord] = useState<DecisionDetailRecord | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [report, setReport] = useState<ReconstructionReportContract | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
-  const [reconReport, setReconReport] =
-    useState<ReconstructionReportContract | null>(null);
-  const [loadingRecon, setLoadingRecon] = useState<boolean>(false);
-  const [reconError, setReconError] = useState<string | null>(null);
+  const [recent, setRecent] = useState(readRecent);
+  const [theme, setTheme] = useState<Theme>(readTheme);
+  const [tourOpen, setTourOpen] = useState(() => readRoute().page === "home" && !tourSeen());
+  const [activity, setActivity] = useState(readActivity);
+  const mainRef = useRef<HTMLElement>(null);
 
-  const [highlightedEvidenceRef, setHighlightedEvidenceRef] = useState<
-    string | null
-  >(null);
+  const cases = useMemo(() => allCases.filter((c) => !isDemoFixture(c)), [allCases]);
 
   const loadCases = useCallback(async () => {
     setLoadingCases(true);
     setCasesError(null);
     try {
-      const list = await fetchDecisionsList();
-      setCases(list);
-      setSelectedDecisionId((prev) =>
-        prev ? prev : list.length > 0 ? list[0].decision_id : null
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setCasesError(msg);
+      setAllCases(await fetchDecisionsList());
+    } catch (e) {
+      setCasesError(errMsg(e));
     } finally {
       setLoadingCases(false);
     }
   }, []);
 
-  const loadSelectedCaseDetail = useCallback(async (decisionId: string) => {
-    setLoadingRecord(true);
-    setRecordError(null);
-    setLoadingRecon(true);
-    setReconError(null);
-    setHighlightedEvidenceRef(null);
-
+  const loadReport = useCallback(async (id: string) => {
+    setLoadingReport(true);
+    setReportError(null);
     try {
-      const rec = await fetchDecisionRecord(decisionId);
-      setDecisionRecord(rec);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setRecordError(msg);
-      setDecisionRecord(null);
+      setReport(await fetchReconstructionReport(id));
+    } catch (e) {
+      setReport(null);
+      setReportError(errMsg(e));
     } finally {
-      setLoadingRecord(false);
-    }
-
-    try {
-      const rep = await fetchReconstructionReport(decisionId);
-      setReconReport(rep);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setReconError(msg);
-      setReconReport(null);
-    } finally {
-      setLoadingRecon(false);
+      setLoadingReport(false);
     }
   }, []);
+
+  const loadDecision = useCallback(
+    async (id: string) => {
+      setLoadingRecord(true);
+      setRecordError(null);
+      setRecord(null);
+      setReport(null);
+      void loadReport(id);
+      try {
+        setRecord(await fetchDecisionRecord(id));
+      } catch (e) {
+        setRecordError(errMsg(e));
+      } finally {
+        setLoadingRecord(false);
+      }
+    },
+    [loadReport]
+  );
 
   useEffect(() => {
     void loadCases();
   }, [loadCases]);
 
   useEffect(() => {
-    if (selectedDecisionId) {
-      void loadSelectedCaseDetail(selectedDecisionId);
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const onPop = () => setRoute(readRoute());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Per-route: title, scroll to top, move focus to the page heading, load data, count the view.
+  useEffect(() => {
+    document.title = `${TITLES[route.page]} · Clearly`;
+    window.scrollTo?.(0, 0);
+    if (route.page === "decision" && route.id) {
+      void loadDecision(route.id);
+      setActivity(track("view", route.id));
+    } else {
+      setActivity(track("view"));
     }
-  }, [selectedDecisionId, loadSelectedCaseDetail]);
+    const t = window.setTimeout(() => mainRef.current?.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true }), 50);
+    return () => window.clearTimeout(t);
+  }, [route.page, route.id, loadDecision]);
 
-  const handleOverrideSubmit = async (payload: CreateOverridePayload) => {
-    await submitDecisionOverride(payload);
-    await loadCases();
-    await loadSelectedCaseDetail(payload.decision_id);
-  };
-
-  const handleManualReconstruct = async (decisionId: string) => {
-    setLoadingRecon(true);
-    setReconError(null);
+  useEffect(() => {
+    if (!record) return;
+    const next = { id: record.decision_id, label: `${record.applicant_id} · ${record.application_id}` };
     try {
-      const rep = await fetchReconstructionReport(decisionId);
-      setReconReport(rep);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setReconError(msg);
-    } finally {
-      setLoadingRecon(false);
+      window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    } catch {
+      /* storage unavailable */
     }
+    setRecent(next);
+  }, [record]);
+
+  const closeTour = useCallback(() => {
+    markTourSeen();
+    setTourOpen(false);
+  }, []);
+
+  const submitReview = async (payload: CreateOverridePayload) => {
+    await submitDecisionOverride(payload);
+    setActivity(track("review", payload.decision_id));
+    await Promise.all([loadCases(), loadDecision(payload.decision_id)]);
   };
+
+  const refreshActivity = () => setActivity(readActivity());
 
   return (
-    <div className="dt-app-shell">
+    <div className="cl-app">
+      <a className="cl-skip" href="#main-content">Skip to content</a>
       <SyntheticBanner />
+      <OfflineBar />
+      <SiteNav page={route.page} theme={theme} onTheme={setTheme} />
 
-      <header className="dt-app-header">
-        <div className="dt-header-inner">
-          <h1 className="dt-app-title">
-            DecisionTrace — Audit &amp; Explanation Workbench
-          </h1>
-          <p className="dt-app-tagline">
-            Hash-chained decision-time evidence capture and cited explanation
-            reconstruction that supports audit and explanation and is
-            tamper-evident against a retained reference.
-          </p>
-        </div>
-      </header>
-
-      <main className="dt-main-layout">
-        <aside className="dt-sidebar-col">
-          <CaseList
-            cases={cases}
-            selectedDecisionId={selectedDecisionId}
-            onSelectCase={(id) => setSelectedDecisionId(id)}
-            loading={loadingCases}
-            error={casesError}
-            onRefresh={() => void loadCases()}
-          />
-        </aside>
-
-        <div className="dt-content-col">
-          {loadingRecord && (
-            <div className="dt-status-box dt-status-info" role="status">
-              <span aria-hidden="true">⏳ </span>Loading preserved decision
-              record...
-            </div>
-          )}
-
-          {recordError && (
-            <div className="dt-status-box dt-status-error" role="alert">
-              <span aria-hidden="true">⛔ [ERROR] </span>
-              <span>Failed to load decision record: {recordError}</span>
-            </div>
-          )}
-
-          {reconError && (
-            <div className="dt-status-box dt-status-error" role="alert">
-              <span aria-hidden="true">⛔ [RECONSTRUCTION ERROR] </span>
-              <span>Failed to reconstruct explanation: {reconError}</span>
-            </div>
-          )}
-
-          {reconReport && (
-            <ReconstructionReport
-              report={reconReport}
-              onCitationClick={(ref) => setHighlightedEvidenceRef(ref)}
+      <main id="main-content" className="cl-main" tabIndex={-1} ref={mainRef}>
+        <ErrorBoundary>
+          {route.page === "home" && (
+            <HomeView
+              cases={cases}
+              loading={loadingCases}
+              error={casesError}
+              onRetry={() => void loadCases()}
+              onOpen={(id) => navigate({ page: "decision", id })}
+              recent={recent}
+              onSearch={() => setActivity(track("search"))}
             />
           )}
 
-          {decisionRecord && (
-            <DecisionRecord
-              record={decisionRecord}
-              highlightedEvidenceRef={highlightedEvidenceRef}
-              onSubmitOverride={handleOverrideSubmit}
-              onTriggerReconstruct={(id) => void handleManualReconstruct(id)}
-              reconstructing={loadingRecon}
+          {route.page === "decision" && loadingRecord && !record && (
+            <div className="cl-loading" role="status" aria-label="Loading decision">
+              <div className="cl-skeleton cl-skel-hero" />
+              <div className="cl-skeleton cl-skel-text" />
+              <div className="cl-skeleton cl-skel-text" />
+            </div>
+          )}
+
+          {route.page === "decision" && recordError && (
+            <div className="cl-empty" role="alert">
+              <div className="cl-empty-art" aria-hidden="true">⌀</div>
+              <h1 className="cl-h2" tabIndex={-1}>We couldn’t find that decision</h1>
+              <p>It may have been removed, or the link may be wrong.</p>
+              <button type="button" className="cl-btn cl-btn-primary" onClick={() => navigate({ page: "home" })}>Browse all decisions</button>
+            </div>
+          )}
+
+          {route.page === "decision" && record && (
+            <DecisionView
+              record={record}
+              report={report}
+              reportLoading={loadingReport}
+              reportError={reportError}
+              onRetryReport={() => void loadReport(record.decision_id)}
+              onBack={() => navigate({ page: "home" })}
+              onSubmitReview={submitReview}
+              onTrack={(e) => setActivity(track(e, record.decision_id))}
             />
           )}
-        </div>
+
+          {route.page === "insights" && (
+            <InsightsPage cases={cases} loading={loadingCases} error={casesError} activity={activity} onActivityReset={refreshActivity} />
+          )}
+          {route.page === "about" && <AboutPage />}
+          {route.page === "help" && <HelpPage onReplayTour={() => setTourOpen(true)} />}
+          {(route.page === "privacy" || route.page === "terms" || route.page === "accessibility") && <LegalPage kind={route.page} />}
+          {route.page === "notfound" && <NotFoundPage />}
+        </ErrorBoundary>
       </main>
+
+      <SiteFooter onTour={() => setTourOpen(true)} />
+      {tourOpen && <WelcomeDialog onClose={closeTour} />}
     </div>
   );
 };
 
 export default App;
-

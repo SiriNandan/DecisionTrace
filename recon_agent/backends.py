@@ -40,14 +40,20 @@ Strict Rules:
 """
 
 
+def _is_placeholder_key(value: str) -> bool:
+    """True for template values such as the `.env.example` placeholder, which are not real keys."""
+    lowered = value.strip().strip("'").strip('"').lower()
+    return lowered.startswith("your_") or "api_key_here" in lowered or lowered in {"changeme", "xxx"}
+
+
 def _resolve_gemini_api_key(explicit_key: str | None = None) -> str | None:
-    """Resolve GEMINI_API_KEY from argument, environment, or local .env file."""
+    """Resolve GEMINI_API_KEY from argument, environment, or local .env file (ignoring placeholders)."""
     if explicit_key and explicit_key.strip():
         return explicit_key.strip()
 
     for env_name in ("GEMINI_API_KEY", "GEMINI_API_KEY:", "GOOGLE_API_KEY"):
         val = os.environ.get(env_name)
-        if val and val.strip():
+        if val and val.strip() and not _is_placeholder_key(val):
             return val.strip()
 
     env_path = Path(__file__).resolve().parent.parent / ".env"
@@ -57,7 +63,11 @@ def _resolve_gemini_api_key(explicit_key: str | None = None) -> str | None:
             if not stripped or stripped.startswith("#") or "=" not in stripped:
                 continue
             k, v = stripped.split("=", 1)
-            if k.strip().rstrip(":") in ("GEMINI_API_KEY", "GOOGLE_API_KEY") and v.strip():
+            if (
+                k.strip().rstrip(":") in ("GEMINI_API_KEY", "GOOGLE_API_KEY")
+                and v.strip()
+                and not _is_placeholder_key(v)
+            ):
                 return v.strip().strip("'").strip('"')
     return None
 
@@ -357,6 +367,13 @@ class LLMBackend(ABC):
         validation_error: str | None = None,
     ) -> dict[str, Any]:
         """Run tool calls via `session` and return a raw dict for `ReconstructionReport` validation."""
+
+    def generate_summary(self, report: dict[str, Any], session: ToolSession) -> str | None:
+        """Optionally write a plain-language explanation of the verified `report`; None = not offered.
+
+        The service runs the result through the grounding guardrail before attaching it.
+        """
+        return None
 
 
 class FakeLLMBackend(LLMBackend):
@@ -667,6 +684,31 @@ class GeminiAPIBackend(LLMBackend):
                 break
 
         return _extract_json_dict(last_text)
+
+    def generate_summary(self, report: dict[str, Any], session: ToolSession) -> str | None:
+        if not self.api_key:
+            return None
+        facts = {
+            "outcome": report.get("outcome"),
+            "claims": [c for g in report.get("reasons", []) for c in g.get("claims", [])],
+            "rule_checks": report.get("rule_checks", []),
+        }
+        client = genai.Client(api_key=self.api_key)
+        resp = self._generate_content_with_fallback(
+            client=client,
+            contents=[types.Content(role="user", parts=[types.Part.from_text(
+                text=SUMMARY_PROMPT + "\n\n" + json.dumps(facts, default=str))])],
+            config=types.GenerateContentConfig(temperature=0.0),
+        )
+        return (resp.text or "").strip() or None
+
+
+SUMMARY_PROMPT = """Write a plain-language explanation (3-5 sentences) of a loan decision for an auditor or applicant.
+Use ONLY the verified facts in the JSON below. Rules:
+- Every sentence that states a fact must end with the evidence id in square brackets exactly as given in a claim's "citation", e.g. [application:APP-0001].
+- Write each number exactly as it appears in the JSON (no percentages, rounding, or conversions) and do not introduce any other numbers.
+- Do not speculate about causes, fairness, or what the applicant should do.
+Return plain text only."""
 
 
 def get_llm_backend(backend_name: str | None = None) -> LLMBackend:

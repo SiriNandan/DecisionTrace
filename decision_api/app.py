@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import hmac
+import logging
 import os
 from typing import Any, Literal
 import uuid
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 import psycopg
 
@@ -21,7 +22,11 @@ from decision_api.service import (
     record_override,
     verify_decision,
 )
-from recon_agent.service import reconstruct_decision
+from backend.anchoring import append_anchor
+from backend.web import configure_app
+from recon_agent.router import reset_state as reset_reconstruct_cache, router as reconstruct_router
+
+logger = logging.getLogger(__name__)
 
 
 class DecideRequest(BaseModel):
@@ -55,6 +60,15 @@ def get_connection() -> psycopg.Connection[Any]:
     return psycopg.connect(db_url, connect_timeout=5)
 
 
+def require_write_key(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
+    """Protect write endpoints when DT_API_KEY is configured; open (local demo) when it is unset."""
+    expected = os.environ.get("DT_API_KEY", "").strip()
+    if not expected:
+        return
+    if x_api_key is None or not hmac.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Missing or invalid X-API-Key.")
+
+
 def create_app() -> FastAPI:
     """Create and configure the DecisionTrace FastAPI application."""
     application = FastAPI(
@@ -66,15 +80,10 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
 
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    configure_app(application)
+    application.include_router(reconstruct_router)
 
-    @application.post("/decide")
+    @application.post("/decide", dependencies=[Depends(require_write_key)])
     def post_decide(
         payload: DecideRequest,
         request: Request,
@@ -94,7 +103,7 @@ def create_app() -> FastAPI:
 
         try:
             with get_connection() as conn:
-                return create_decision(
+                created = create_decision(
                     conn,
                     applicant_id=payload.applicant_id,
                     requested_amount=payload.requested_amount,
@@ -104,6 +113,13 @@ def create_app() -> FastAPI:
                     idempotency_key=effective_idem_key,
                     data_dir=data_dir_override,
                 )
+            try:
+                append_anchor(
+                    created["decision_id"], created["chain_length"], created["chain_head"], created["decided_at"]
+                )
+            except OSError:
+                logger.exception("Could not write chain-head anchor for %s", created["decision_id"])
+            return created
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except LookupError as exc:
@@ -111,7 +127,7 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    @application.post("/overrides")
+    @application.post("/overrides", dependencies=[Depends(require_write_key)])
     def post_override(payload: OverrideRequest) -> dict[str, Any]:
         try:
             dec_uuid = uuid.UUID(payload.decision_id)
@@ -120,13 +136,15 @@ def create_app() -> FastAPI:
 
         try:
             with get_connection() as conn:
-                return record_override(
+                result = record_override(
                     conn,
                     decision_id=dec_uuid,
                     new_outcome=payload.new_outcome,
                     reason=payload.reason,
                     actor_role=payload.actor_role,
                 )
+            reset_reconstruct_cache()
+            return result
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
@@ -164,19 +182,6 @@ def create_app() -> FastAPI:
             with get_connection() as conn:
                 return verify_decision(conn, dec_uuid)
         except LookupError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    @application.post("/reconstruct/{decision_id}", response_model=ReconstructionReport)
-    def post_reconstruct(decision_id: str) -> ReconstructionReport:
-        try:
-            uuid.UUID(str(decision_id))
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"Invalid decision_id UUID: {decision_id}") from exc
-
-        try:
-            db_url = get_db_url(os.environ.get("DB_URL"))
-            return reconstruct_decision(decision_id, db_url=db_url)
-        except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return application

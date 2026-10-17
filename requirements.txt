@@ -1,4 +1,4 @@
-﻿annotated-doc==0.0.5
+annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 certifi==2026.7.22
@@ -8,8 +8,6 @@ click==8.5.0
 cloudpickle==3.1.2
 colorama==0.4.6
 cryptography==50.0.2
-## !! Could not determine repository location
--e c:\users\hp\desktop\ac275 siri nandan chilamkurthy\personal documents\study\geniai\ai_builder
 distro==1.9.0
 fastapi==0.143.3
 google-auth==2.62.0

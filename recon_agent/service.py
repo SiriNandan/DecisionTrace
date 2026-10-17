@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from backend.contract import ReconstructionReport, ReconstructionStatus
 from recon_agent.backends import LLMBackend, get_llm_backend
+from recon_agent.guardrails import apply_claim_guardrails, check_narrative
 from recon_agent.tools import (
     DEFAULT_MAX_TOOL_CALLS,
     DEFAULT_REPLAY_TOLERANCE,
@@ -216,6 +217,29 @@ def reconstruct_decision(
                     if erased_ref not in existing_missing:
                         existing_missing.append(erased_ref)
                 raw_report["missing_evidence"] = existing_missing
+
+            # Runtime grounding guardrail: drop claims whose citation, field/value, or numbers
+            # are not backed by tool results returned in this session.
+            raw_report = dict(raw_report)
+            kept_reasons, rejected = apply_claim_guardrails(
+                list(raw_report.get("reasons") or []), session
+            )
+            raw_report["reasons"] = kept_reasons
+            raw_report["guardrail_rejections"] = int(
+                raw_report.get("guardrail_rejections") or 0
+            ) + rejected
+
+            # Optional LLM plain-language summary; kept only if it passes the same grounding checks.
+            if kept_reasons and raw_report.get("status", "ok") == "ok":
+                try:
+                    summary = active_backend.generate_summary(raw_report, session)
+                except Exception:
+                    summary = None
+                if summary is not None:
+                    if check_narrative(summary, session):
+                        raw_report["plain_language_summary"] = summary
+                    else:
+                        raw_report["guardrail_rejections"] += 1
 
             validated = ReconstructionReport.model_validate(raw_report)
             return (validated, session) if return_session else validated

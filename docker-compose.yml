@@ -17,6 +17,46 @@ services:
       timeout: 5s
       retries: 5
 
+  # One-shot: create schema, load policies, register the model, seed the demo scenarios.
+  seed:
+    build: { context: ., dockerfile: Dockerfile.api }
+    command: ["python", "-m", "data.seed"]
+    environment: &api_env
+      DB_URL: postgresql://${POSTGRES_USER:-decisiontrace}:${POSTGRES_PASSWORD:-decisiontrace_local_dev}@postgres:5432/${POSTGRES_DB:-decisiontrace}
+      ENV: ${ENV:-dev}
+      LLM_BACKEND: ${LLM_BACKEND:-fake}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      DT_API_KEY: ${DT_API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["app"]
+
+  api:
+    build: { context: ., dockerfile: Dockerfile.api }
+    restart: unless-stopped
+    environment: *api_env
+    depends_on:
+      seed: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/decisions?limit=1')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles: ["app"]
+
+  web:
+    build: { context: ./frontend }
+    restart: unless-stopped
+    environment:
+      DT_API_KEY: ${DT_API_KEY:-}
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api: { condition: service_healthy }
+    profiles: ["app"]
+
 volumes:
   pgdata:
 

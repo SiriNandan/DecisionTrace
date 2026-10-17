@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => {
       "process.env.VITE_API_URL": JSON.stringify(
         env.VITE_API_URL || process.env.VITE_API_URL || "http://localhost:8000"
       ),
+      "process.env.VITE_API_KEY": JSON.stringify(
+        env.VITE_API_KEY || process.env.VITE_API_KEY || ""
+      ),
       "process.env.VITE_USE_MOCKS": JSON.stringify(
         env.VITE_USE_MOCKS || process.env.VITE_USE_MOCKS || "false"
       ),

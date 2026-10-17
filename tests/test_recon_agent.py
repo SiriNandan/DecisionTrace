@@ -266,6 +266,94 @@ def test_tool_call_limit_and_timeout_enforcement(
     assert timeout_report.status == "timeout"
 
 
+def test_runtime_guardrail_strips_ungrounded_claims(
+    seeded_scenarios: tuple[dict[str, dict], dict[str, dict]],
+) -> None:
+    """A backend that injects hallucinated claims must have them removed and counted at runtime."""
+    _, seeded_by_name = seeded_scenarios
+    decision_id = seeded_by_name["clear_approve"]["decision_id"]
+
+    class HallucinatingBackend(FakeLLMBackend):
+        def generate_report(self, decision_id, session, *, attempt=1, validation_error=None):
+            raw = super().generate_report(
+                decision_id, session, attempt=attempt, validation_error=validation_error
+            )
+            raw = dict(raw)
+            raw["reasons"] = list(raw["reasons"]) + [
+                {
+                    "claims": [
+                        {
+                            "text": "Applicant income was 987654.",
+                            "citation": "doc:nonexistent_999",
+                            "field": "income_annual",
+                            "value": 987654,
+                        },
+                        {
+                            "text": "Debt-to-income ratio was 0.1234.",
+                            "citation": next(iter(session.returned_items_by_id)),
+                            "field": "dti_ratio",
+                            "value": 0.1234,
+                        },
+                    ]
+                }
+            ]
+            return raw
+
+    clean = reconstruct_decision(decision_id, backend=FakeLLMBackend())
+    report = reconstruct_decision(decision_id, backend=HallucinatingBackend())
+
+    assert clean.guardrail_rejections == 0
+    assert report.guardrail_rejections == 2
+    assert report.status == "ok"
+    texts = [c.text for r in report.reasons for c in r.claims]
+    assert not any("987654" in t or "0.1234" in t for t in texts)
+    assert len(report.reasons) == len(clean.reasons)
+
+
+def test_plain_language_summary_is_guardrailed(
+    seeded_scenarios: tuple[dict[str, dict], dict[str, dict]],
+) -> None:
+    """LLM summaries are attached only if every number and [citation] is grounded in tool results."""
+    _, seeded_by_name = seeded_scenarios
+    decision_id = seeded_by_name["clear_approve"]["decision_id"]
+
+    def backend_with(summary_fn):
+        class SummaryBackend(FakeLLMBackend):
+            def generate_summary(self, report, session):
+                return summary_fn(report, session)
+
+        return SummaryBackend()
+
+    def grounded(report, session):
+        claim = report["reasons"][0]["claims"][0]
+        return f"The decision was {report['outcome']}. {claim['text']} [{claim['citation']}]"
+
+    ok = reconstruct_decision(decision_id, backend=backend_with(grounded))
+    assert ok.plain_language_summary and ok.guardrail_rejections == 0
+
+    for bad in (
+        lambda r, s: "Income was 987654 [" + r["reasons"][0]["claims"][0]["citation"] + "].",
+        lambda r, s: "Looks fine [doc:nonexistent_999].",
+        lambda r, s: "No citation at all.",
+    ):
+        rep = reconstruct_decision(decision_id, backend=backend_with(bad))
+        assert rep.plain_language_summary is None
+        assert rep.guardrail_rejections == 1
+
+    def boom(r, s):
+        raise RuntimeError("api down")
+
+    rep = reconstruct_decision(decision_id, backend=backend_with(boom))
+    assert rep.status == "ok" and rep.plain_language_summary is None
+
+
+def test_placeholder_gemini_key_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The `.env.example` placeholder must not be treated as a real API key."""
+    monkeypatch.setenv("GEMINI_API_KEY", "your_gemini_api_key_here")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    assert _resolve_gemini_api_key() != "your_gemini_api_key_here"
+
+
 def test_real_gemini_api_reconstruction(
     seeded_scenarios: tuple[dict[str, dict], dict[str, dict]],
 ) -> None:

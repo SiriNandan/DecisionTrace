@@ -37,3 +37,12 @@ export function isUseMocksEnabled(): boolean {
   return envMocks.trim().toLowerCase() === "true";
 }
 
+
+/** Optional write key sent as X-API-Key when the backend sets DT_API_KEY. */
+export function getApiKey(): string {
+  const envKey =
+    typeof process !== "undefined" && process.env && process.env.VITE_API_KEY
+      ? process.env.VITE_API_KEY
+      : "";
+  return envKey.trim();
+}

@@ -135,3 +135,45 @@ def ensure_postgres_running(tmp_path_factory: pytest.TempPathFactory):
             stderr=subprocess.DEVNULL,
         )
 
+
+
+TEST_DB_NAME = "decisiontrace_test"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_test_database(ensure_postgres_running, tmp_path_factory: pytest.TempPathFactory):
+    """Run the whole session against a throwaway seeded database so dev data is never touched.
+
+    Also redirects the generated model card to a temp path so tracked docs stay clean.
+    """
+    from psycopg.conninfo import make_conninfo
+
+    from data.load_policies import get_db_url
+    from data.seed import ensure_database, seed_database
+
+    base_url = os.environ.get("DB_URL") or get_db_url()
+    test_url = make_conninfo(base_url, dbname=TEST_DB_NAME)
+    app_base = os.environ.get("APP_DB_URL") or _parse_env_file(ROOT_DIR / ".env.example").get("APP_DB_URL", "")
+
+    saved = {k: os.environ.get(k) for k in ("DB_URL", "APP_DB_URL", "DT_MODEL_CARD_PATH")}
+    os.environ["DB_URL"] = test_url
+    if app_base:
+        os.environ["APP_DB_URL"] = make_conninfo(app_base, dbname=TEST_DB_NAME)
+    os.environ["DT_MODEL_CARD_PATH"] = str(tmp_path_factory.mktemp("docs") / "model_card.md")
+    try:
+        seed_database(test_url, reset=True)
+        yield test_url
+    finally:
+        for key, val in saved.items():
+            if val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = val
+        try:
+            import psycopg
+            from psycopg import sql
+
+            with psycopg.connect(make_conninfo(base_url, dbname="postgres"), autocommit=True) as conn:
+                conn.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(TEST_DB_NAME)))
+        except Exception:  # best-effort cleanup
+            pass

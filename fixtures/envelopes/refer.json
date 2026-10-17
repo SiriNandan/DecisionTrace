@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "external_id": "FIXTURE-REFER",
+  "subject_ref": "subj-fixture-refer",
+  "decided_at": "2026-10-01T12:00:00+00:00",
+  "outcome": "REFER",
+  "score": 0.5215,
+  "model_version": "fixture-bank_model_v1",
+  "policy_version": "fixture-bank_policy_2026",
+  "reasons": [
+    {
+      "code": "RECENT_ARREARS",
+      "text": "There were recent missed payments, so a person needs to review the application."
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_type": "application",
+      "evidence_ref": "application:FIXTURE-REFER",
+      "source_id": "los",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "income_annual": 29948.69,
+        "requested_amount": 10249.55,
+        "dti_ratio": 0.187
+      }
+    },
+    {
+      "evidence_type": "bureau",
+      "evidence_ref": "bureau:FIXTURE-REFER",
+      "source_id": "bureau_api",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "credit_score": 582,
+        "delinquencies_24m": 2
+      }
+    },
+    {
+      "evidence_type": "document",
+      "evidence_ref": "document:payslip:FIXTURE-REFER",
+      "source_id": "doc_upload",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "status": "received"
+      }
+    }
+  ]
+}

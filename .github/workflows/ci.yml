@@ -47,16 +47,21 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: pip install -r requirements.txt
+      - name: Lockfile must only use the public npm registry
+        run: "! grep -E '\"resolved\": \"https?://' frontend/package-lock.json | grep -v 'https://registry.npmjs.org/'"
       - run: npm --prefix frontend ci
       - run: npm --prefix frontend exec tsc -- -b
       - run: npm --prefix frontend run build
       - name: Seed database and start both APIs for the live-API Jest tests
         run: |
           python -m data.seed
+          export DT_API_KEY=ci-demo-key
           nohup uvicorn decision_api.app:app --port 8000 > api8000.log 2>&1 &
           nohup uvicorn recon_agent.app:app --port 8001 > api8001.log 2>&1 &
-          for i in $(seq 1 30); do curl -fs "http://127.0.0.1:8000/decisions?limit=1" >/dev/null && break; sleep 1; done
+          for i in $(seq 1 30); do curl -fs -H "X-API-Key: ci-demo-key" "http://127.0.0.1:8000/decisions?limit=1" >/dev/null && break; sleep 1; done
       - run: npm --prefix frontend test
+        env:
+          VITE_API_KEY: ci-demo-key
 
   audit:
     runs-on: ubuntu-latest

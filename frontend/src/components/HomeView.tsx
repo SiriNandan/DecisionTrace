@@ -19,13 +19,14 @@ export interface HomeViewProps {
   cases: DecisionSummaryItem[];
   loading: boolean;
   error: string | null;
+  signInNeeded?: boolean;
   onRetry: () => void;
   onOpen: (id: string) => void;
   recent: { id: string; label: string } | null;
   onSearch?: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, onRetry, onOpen, recent, onSearch }) => {
+export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signInNeeded, onRetry, onOpen, recent, onSearch }) => {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
   const [sort, setSort] = useState<"new" | "risk-high" | "risk-low">("new");
@@ -192,8 +193,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, onRet
 
         {error && (
           <div className="cl-note cl-note-bad" role="alert">
-            <strong>We couldn’t load the decisions.</strong>
-            <span>Check your connection and try again.</span>
+            <strong>{signInNeeded ? "Sign-in is needed to see these decisions." : "We couldn’t load the decisions."}</strong>
+            <span>{signInNeeded ? "Your sign-in is missing or has expired. Please sign in again." : "Check your connection and try again."}</span>
             <button type="button" className="cl-btn cl-btn-ghost" onClick={onRetry}>Try again</button>
           </div>
         )}

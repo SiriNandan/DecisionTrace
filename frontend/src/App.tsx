@@ -3,6 +3,7 @@ import {
   fetchDecisionRecord,
   fetchDecisionsList,
   fetchReconstructionReport,
+  needsSignIn,
   submitDecisionOverride,
 } from "./api";
 import DecisionView from "./components/DecisionView";
@@ -14,6 +15,7 @@ import { isDemoFixture } from "./lib/plain";
 import { navigate, readRoute, Route } from "./lib/router";
 import { applyTheme, markTourSeen, readActivity, readTheme, Theme, tourSeen, track } from "./lib/usage";
 import AboutPage from "./pages/AboutPage";
+import ConnectPage from "./pages/ConnectPage";
 import HelpPage from "./pages/HelpPage";
 import InsightsPage from "./pages/InsightsPage";
 import LegalPage from "./pages/LegalPage";
@@ -59,6 +61,7 @@ export const App: React.FC = () => {
   const [record, setRecord] = useState<DecisionDetailRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [signInNeeded, setSignInNeeded] = useState(false);
   const [report, setReport] = useState<ReconstructionReportContract | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -74,10 +77,12 @@ export const App: React.FC = () => {
   const loadCases = useCallback(async () => {
     setLoadingCases(true);
     setCasesError(null);
+    setSignInNeeded(false);
     try {
       setAllCases(await fetchDecisionsList());
     } catch (e) {
       setCasesError(errMsg(e));
+      setSignInNeeded(needsSignIn(e));
     } finally {
       setLoadingCases(false);
     }
@@ -100,6 +105,7 @@ export const App: React.FC = () => {
     async (id: string) => {
       setLoadingRecord(true);
       setRecordError(null);
+      setSignInNeeded(false);
       setRecord(null);
       setReport(null);
       void loadReport(id);
@@ -107,6 +113,7 @@ export const App: React.FC = () => {
         setRecord(await fetchDecisionRecord(id));
       } catch (e) {
         setRecordError(errMsg(e));
+        setSignInNeeded(needsSignIn(e));
       } finally {
         setLoadingRecord(false);
       }
@@ -180,6 +187,7 @@ export const App: React.FC = () => {
               cases={cases}
               loading={loadingCases}
               error={casesError}
+              signInNeeded={signInNeeded}
               onRetry={() => void loadCases()}
               onOpen={(id) => navigate({ page: "decision", id })}
               recent={recent}
@@ -198,8 +206,8 @@ export const App: React.FC = () => {
           {route.page === "decision" && recordError && (
             <div className="cl-empty" role="alert">
               <div className="cl-empty-art" aria-hidden="true">⌀</div>
-              <h1 className="cl-h2" tabIndex={-1}>We couldn’t find that decision</h1>
-              <p>It may have been removed, or the link may be wrong.</p>
+              <h1 className="cl-h2" tabIndex={-1}>{signInNeeded ? "Sign-in is needed to see this" : "We couldn’t find that decision"}</h1>
+              <p>{signInNeeded ? "Your sign-in is missing or has expired. Please sign in again, or ask your lender for a new link." : "It may have been removed, or the link may be wrong."}</p>
               <button type="button" className="cl-btn cl-btn-primary" onClick={() => navigate({ page: "home" })}>Browse all decisions</button>
             </div>
           )}
@@ -221,6 +229,7 @@ export const App: React.FC = () => {
             <InsightsPage cases={cases} loading={loadingCases} error={casesError} activity={activity} onActivityReset={refreshActivity} />
           )}
           {route.page === "about" && <AboutPage />}
+          {route.page === "connect" && <ConnectPage />}
           {route.page === "help" && <HelpPage onReplayTour={() => setTourOpen(true)} />}
           {(route.page === "privacy" || route.page === "terms" || route.page === "accessibility") && <LegalPage kind={route.page} />}
           {route.page === "notfound" && <NotFoundPage />}

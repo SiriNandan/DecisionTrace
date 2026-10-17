@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "external_id": "FIXTURE-APPROVE",
+  "subject_ref": "subj-fixture-approve",
+  "decided_at": "2026-10-01T12:00:00+00:00",
+  "outcome": "APPROVE",
+  "score": 0.3155,
+  "model_version": "fixture-bank_model_v1",
+  "policy_version": "fixture-bank_policy_2026",
+  "reasons": [],
+  "evidence": [
+    {
+      "evidence_type": "application",
+      "evidence_ref": "application:FIXTURE-APPROVE",
+      "source_id": "los",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "income_annual": 32085.31,
+        "requested_amount": 14061.5,
+        "dti_ratio": 0.309
+      }
+    },
+    {
+      "evidence_type": "bureau",
+      "evidence_ref": "bureau:FIXTURE-APPROVE",
+      "source_id": "bureau_api",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "credit_score": 689,
+        "delinquencies_24m": 0
+      }
+    },
+    {
+      "evidence_type": "document",
+      "evidence_ref": "document:payslip:FIXTURE-APPROVE",
+      "source_id": "doc_upload",
+      "source_timestamp": "2026-10-01T11:58:00+00:00",
+      "payload": {
+        "status": "received"
+      }
+    }
+  ]
+}

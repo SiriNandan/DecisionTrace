@@ -7,6 +7,8 @@ from typing import Any
 import uuid
 
 from fastapi.testclient import TestClient
+
+from tests.conftest import AUTH
 import psycopg
 import pytest
 
@@ -66,7 +68,7 @@ def api_client(prepared_db: str, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("ENV", "dev")
     monkeypatch.setenv("DB_URL", prepared_db)
     app = create_app()
-    return TestClient(app)
+    return TestClient(app, headers=AUTH)
 
 
 def test_source_readers_return_payload_source_id_and_timestamp() -> None:
@@ -500,7 +502,7 @@ def test_post_overrides_preserves_byte_identical_decision_and_snapshots_and_retu
 def test_write_endpoints_require_api_key_when_configured(
     api_client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With DT_API_KEY set, POST /decide and /overrides reject missing/invalid X-API-Key (401); reads stay open."""
+    """With DT_API_KEY set, POST /decide and /overrides reject missing/invalid X-API-Key (401); reads need a key too."""
     monkeypatch.setenv("DT_API_KEY", "secret-test-key")
     body = {"applicant_id": "APP-0001"}
     assert api_client.post("/decide", json=body).status_code == 401
@@ -512,7 +514,8 @@ def test_write_endpoints_require_api_key_when_configured(
         "actor_role": "credit_supervisor",
     }
     assert api_client.post("/overrides", json=ov).status_code == 401
-    assert api_client.get("/decisions?limit=1").status_code == 200
+    assert api_client.get("/decisions?limit=1").status_code == 401
+    assert api_client.get("/decisions?limit=1", headers={"X-API-Key": "secret-test-key"}).status_code == 200
     # Correct key passes the auth gate (404 = decision not found, not 401)
     ok = api_client.post("/overrides", json=ov, headers={"X-API-Key": "secret-test-key"})
     assert ok.status_code == 404

@@ -7,6 +7,8 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import AUTH
+
 from backend.web import SlidingWindowLimiter, TTLCache, cors_origins
 from decision_api.app import create_app
 from recon_agent import router as recon_router
@@ -21,7 +23,7 @@ def _reset_router_state():
 
 
 def test_security_headers_and_restricted_cors() -> None:
-    client = TestClient(create_app())
+    client = TestClient(create_app(), headers=AUTH)
     resp = client.get("/decisions", params={"limit": 1}, headers={"Origin": "http://localhost:5173"})
     assert resp.headers["x-content-type-options"] == "nosniff"
     assert resp.headers["x-frame-options"] == "DENY"
@@ -49,7 +51,7 @@ def test_reconstruct_requires_key_when_configured(monkeypatch: pytest.MonkeyPatc
 
 def test_reconstruct_rate_limited(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(recon_router, "_limiter", SlidingWindowLimiter(2))
-    client = TestClient(recon_app)
+    client = TestClient(recon_app, headers=AUTH)
     url = f"/reconstruct/{uuid.uuid4()}"
     assert client.post(url).status_code == 404
     assert client.post(url).status_code == 404
@@ -59,7 +61,7 @@ def test_reconstruct_rate_limited(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_reconstruct_caches_ok_reports_and_override_invalidates(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = TestClient(create_app())
+    client = TestClient(create_app(), headers=AUTH)
     decision_id = client.get("/decisions", params={"limit": 1}).json()[0]["decision_id"]
     calls: list[str] = []
     real = recon_router.reconstruct_decision

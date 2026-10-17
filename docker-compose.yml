@@ -27,7 +27,9 @@ services:
       LLM_BACKEND: ${LLM_BACKEND:-fake}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
-      DT_API_KEY: ${DT_API_KEY:-}
+      APP_DB_URL: postgresql://app_role:app_role_local_dev@postgres:5432/${POSTGRES_DB:-decisiontrace}
+      DT_API_KEY: ${DT_API_KEY:-dev-demo-key}
+      DT_ID_SECRET: ${DT_ID_SECRET:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
     depends_on:
       postgres: { condition: service_healthy }
@@ -50,7 +52,7 @@ services:
     build: { context: ./frontend }
     restart: unless-stopped
     environment:
-      DT_API_KEY: ${DT_API_KEY:-}
+      DT_API_KEY: ${DT_API_KEY:-dev-demo-key}
     ports:
       - "${WEB_PORT:-8080}:80"
     depends_on:

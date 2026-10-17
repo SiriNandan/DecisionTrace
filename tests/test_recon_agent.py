@@ -14,6 +14,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import AUTH
+
 from backend.contract import ReconstructionReport
 from data.seed_scenarios import load_scenarios_yaml, seed_scenarios
 from recon_agent.app import app
@@ -78,7 +80,7 @@ def test_reconstruct_all_ten_scenarios_with_fake_backend(
     """Verify all 10 scenarios reconstruct accurately via FastAPI POST /reconstruct/{decision_id} with LLM_BACKEND=fake."""
     monkeypatch.setenv("LLM_BACKEND", "fake")
     yaml_by_name, seeded_by_name = seeded_scenarios
-    client = TestClient(app)
+    client = TestClient(app, headers=AUTH)
 
     assert len(seeded_by_name) == 10
 

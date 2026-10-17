@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import AUTH
+
 from backend.anchoring import append_anchor, compare_with_database, verify_anchor_log
 from decision_api.app import create_app
 
@@ -51,7 +53,7 @@ def test_decide_anchors_and_database_rewrite_is_caught(tmp_path: Path, monkeypat
 
     log = tmp_path / "anchors.jsonl"
     monkeypatch.setenv("DT_ANCHOR_LOG", str(log))
-    client = TestClient(create_app())
+    client = TestClient(create_app(), headers=AUTH)
     resp = client.post("/decide", json={"applicant_id": "APP-0011"})
     assert resp.status_code == 200, resp.text
     decision = resp.json()

@@ -2,6 +2,11 @@
 
 All changes to `backend/contract.py` (`ReconstructionReport`, `RuleCheck`, `Reason`, `Claim`, `Override`) require a dated entry in this file.
 
+## [1.1.0] - 2026-10-17
+
+### Added
+- `ReconstructionReport.recording_mode` (`scored | recorded`, default `scored`). `recorded` reports describe a decision the lender's own system made and DecisionTrace preserved: `rule_checks` is empty, `replay_verified` is `False` because there is no DecisionTrace score to re-work, and each `Claim` cites the preserved `lender_decision` snapshot (`field` is `outcome`, `score` or `reason_code`). Backward compatible: existing reports and clients are unaffected.
+
 ## [1.0.0] - 2026-10-17
 
 ### Added

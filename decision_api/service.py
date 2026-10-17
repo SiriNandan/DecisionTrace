@@ -917,8 +917,12 @@ def record_override(
     reason: str,
     actor_role: str,
     created_at: datetime | str | None = None,
+    kind: str = "override",
 ) -> dict[str, Any]:
-    """Append an override row into `overrides` only without mutating `decisions` or `decision_snapshots`."""
+    """Append an override row into `overrides` only without mutating `decisions` or `decision_snapshots`.
+
+    `kind='review_request'` is a customer asking for a person to look again: it is recorded but never changes the outcome.
+    """
     clean_outcome = str(new_outcome).strip().upper()
     if clean_outcome not in ("APPROVE", "DECLINE", "REFER"):
         raise ValueError(
@@ -949,11 +953,11 @@ def record_override(
 
             cur.execute(
                 """
-                INSERT INTO overrides (decision_id, new_outcome, reason, actor_role, created_at)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO overrides (decision_id, new_outcome, reason, actor_role, created_at, kind)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING override_id;
                 """,
-                (dec_uuid, clean_outcome, clean_reason, clean_role, override_ts),
+                (dec_uuid, clean_outcome, clean_reason, clean_role, override_ts, kind),
             )
             override_id = int(cur.fetchone()[0])
 
@@ -973,6 +977,7 @@ def list_decisions(
     applicant_id: str | None = None,
     limit: int = 100,
     tenant_id: str | None = None,
+    only_decision_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """List recorded decisions ordered by decided_at DESC (only `tenant_id`'s when given)."""
     with conn.cursor() as cur:
@@ -991,7 +996,7 @@ def list_decisions(
                 (
                     SELECT o.new_outcome
                     FROM overrides o
-                    WHERE o.decision_id = d.decision_id
+                    WHERE o.decision_id = d.decision_id AND o.kind = 'override'
                     ORDER BY o.created_at DESC, o.override_id DESC
                     LIMIT 1
                 ) AS override_outcome,
@@ -1005,10 +1010,11 @@ def list_decisions(
                 ) AS snap_applicant_id
             FROM decisions d
             WHERE (%s::text IS NULL OR d.tenant_id = %s)
+              AND (%s::uuid IS NULL OR d.decision_id = %s::uuid)
             ORDER BY d.decided_at DESC, d.decision_id ASC
             LIMIT %s;
             """,
-            (tenant_id, tenant_id, limit),
+            (tenant_id, tenant_id, only_decision_id, only_decision_id, limit),
         )
         rows = cur.fetchall()
 
@@ -1088,6 +1094,8 @@ def verify_decision(
         "snapshot_count": len(rec["snapshots"]),
         "chain_head": rec["chain_head"],
         "evidence_statuses": rec["evidence_statuses"],
+        "corrections_count": len(rec["corrections"]),
+        "corrections_valid": rec["corrections_valid"],
     }
 
 
@@ -1125,7 +1133,7 @@ def reconstruct_decision_from_snapshots(
 
         cur.execute(
             """
-            SELECT override_id, new_outcome, reason, actor_role, created_at
+            SELECT override_id, new_outcome, reason, actor_role, created_at, kind
             FROM overrides
             WHERE decision_id = %s
             ORDER BY created_at DESC, override_id DESC;
@@ -1187,6 +1195,9 @@ def reconstruct_decision_from_snapshots(
     with conn.cursor() as cur:
         cur.execute("SELECT recording_mode FROM decisions WHERE decision_id = %s;", (dec_uuid,))
         recording_mode = str(cur.fetchone()[0])
+    from backend.quality import load_corrections  # deferred: keeps this module free of the quality imports
+
+    corrections, corrections_valid, corrections_problem = load_corrections(conn, str(dec_uuid))
 
     evidence_statuses = {str(r[0]): str(r[1]) for r in status_rows}
     has_erased_evidence = any(
@@ -1221,8 +1232,15 @@ def reconstruct_decision_from_snapshots(
     overrides_list: list[dict[str, Any]] = []
     effective_outcome = str(initial_outcome)
 
+    review_requests: list[dict[str, Any]] = []
     for ov in override_rows:
-        ov_id, ov_outcome, ov_reason, ov_role, ov_ts = ov
+        ov_id, ov_outcome, ov_reason, ov_role, ov_ts, ov_kind = ov
+        if ov_kind == "review_request":  # a customer asking for a look: shown, but never the outcome
+            review_requests.append({
+                "reason": str(ov_reason),
+                "created_at": ov_ts.isoformat() if hasattr(ov_ts, "isoformat") else str(ov_ts),
+            })
+            continue
         ov_entry = {
             "override_id": int(ov_id),
             "new_outcome": str(ov_outcome),
@@ -1288,7 +1306,11 @@ def reconstruct_decision_from_snapshots(
         "override": latest_override,
         "human_override": human_override,
         "overrides": overrides_list,
+        "review_requests": review_requests,
         "snapshots": chain_dicts,
         "preserved_applicant_params": preserved_applicant_params,
         "recording_mode": recording_mode,
+        "corrections": corrections,
+        "corrections_valid": corrections_valid,
+        "corrections_problem": corrections_problem,
     }

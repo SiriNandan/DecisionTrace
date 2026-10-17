@@ -8,7 +8,9 @@ export const ReviewForm: React.FC<{
   decisionId: string;
   currentOutcome: DecisionOutcome;
   onSubmit?: (p: CreateOverridePayload) => Promise<void>;
-}> = ({ decisionId, currentOutcome, onSubmit }) => {
+  /** A customer can only ask for a person to look again; they can't pick a result or a job title. */
+  customer?: boolean;
+}> = ({ decisionId, currentOutcome, onSubmit, customer = false }) => {
   const [outcome, setOutcome] = useState<DecisionOutcome>(currentOutcome === "APPROVE" ? "REFER" : "APPROVE");
   const [role, setRole] = useState("senior_credit_underwriter");
   const [reason, setReason] = useState("");
@@ -27,7 +29,12 @@ export const ReviewForm: React.FC<{
     if (tooShort || !onSubmit) return;
     setBusy(true);
     try {
-      await onSubmit({ decision_id: decisionId, new_outcome: outcome, reason: reason.trim(), actor_role: role.trim() });
+      await onSubmit({
+        decision_id: decisionId,
+        new_outcome: customer ? "REFER" : outcome,
+        reason: reason.trim(),
+        actor_role: customer ? "customer" : role.trim(),
+      });
       setDone(true);
       setReason("");
       setTouched(false);
@@ -41,9 +48,11 @@ export const ReviewForm: React.FC<{
   return (
     <form className="cl-form" onSubmit={submit} noValidate data-testid="review-form">
       <p className="cl-muted">
-        A person can ask for this decision to be looked at again. Your request is added to the
-        record. The original decision is never overwritten.
+        {customer
+          ? "If you think something is wrong, you can ask for a person at the lender to look at this decision again. Your request is added to the record. The original decision is never overwritten, and only a person can change the result."
+          : "A person can ask for this decision to be looked at again. Your request is added to the record. The original decision is never overwritten."}
       </p>
+      {!customer && (
       <div className="cl-form-row">
         <label className="cl-field">
           <span>Requested result</span>
@@ -58,8 +67,9 @@ export const ReviewForm: React.FC<{
           <input value={role} onChange={(e) => setRole(e.target.value)} required />
         </label>
       </div>
+      )}
       <label className="cl-field">
-        <span>Why should this be reviewed? <em>(at least {MIN} characters)</em></span>
+        <span>{customer ? "What do you think is wrong?" : "Why should this be reviewed?"} <em>(at least {MIN} characters)</em></span>
         <textarea
           rows={4}
           value={reason}

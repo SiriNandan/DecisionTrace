@@ -164,6 +164,18 @@ class Override(BaseModel):
         return str(value)
 
 
+class CorrectionNote(BaseModel):
+    """A later correction to an input of this decision. The decision itself used the original value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: str = Field(..., min_length=1, description="Name of the corrected field")
+    old_value: ScalarValue | None = Field(default=None, description="Value the decision was made with (None if absent)")
+    new_value: ScalarValue = Field(..., description="Corrected value")
+    corrected_at: str = Field(..., min_length=1, description="ISO-8601 timestamp when the correction was recorded")
+    reason: str = Field(..., min_length=1, description="Why it was corrected, as written by the reviewer")
+
+
 class ReconstructionReport(BaseModel):
     """Structured reconstruction report synthesized exclusively from preserved decision-time evidence.
 
@@ -277,6 +289,10 @@ class ReconstructionReport(BaseModel):
             "'recorded' = the lender's own system decided and DecisionTrace preserved it, so replay_verified is "
             "False because there is nothing for DecisionTrace to re-score"
         ),
+    )
+    corrections: list[CorrectionNote] = Field(
+        default_factory=list,
+        description="Corrections made after the decision; the explanation above describes the original inputs",
     )
     guardrail_rejections: int = Field(
         default=0,

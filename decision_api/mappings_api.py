@@ -237,11 +237,22 @@ def import_file(req: ImportRequest, principal: Principal = Depends(require_scope
                 new_records.append(out)
             tally[key] += 1
             results.append({"row": i, "status": key, "external_id": env.external_id, "decision_id": out["decision_id"]})
+        quality = None
+        signals = None
         if not req.dry_run:
             log_access(conn, principal, "import", "mapping", f"{m['mapping_id']} rows={len(rows)}")
+            if new_records:  # check what was just saved, so problems surface straight away
+                from backend.quality import scan
+
+                quality = scan(conn, principal.tenant_id, decision_ids=[r["decision_id"] for r in new_records])
+                from backend.signals import scan_signals
+
+                signals = scan_signals(conn, principal.tenant_id, decision_ids=[r["decision_id"] for r in new_records],
+                                       include_access=False)
     for rec in new_records:
         try:
             append_anchor(rec["decision_id"], rec["chain_length"], rec["chain_head"], rec["decided_at"])
         except OSError:
             logger.exception("Could not write chain-head anchor for %s", rec["decision_id"])
-    return {"mapping_id": m["mapping_id"], "version": m["version"], "dry_run": req.dry_run, **tally, "results": results}
+    return {"mapping_id": m["mapping_id"], "version": m["version"], "dry_run": req.dry_run, **tally,
+            "quality": quality, "signals": signals, "results": results}

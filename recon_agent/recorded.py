@@ -11,11 +11,41 @@ from typing import Any
 import psycopg
 
 from backend.contract import ReconstructionReport
+from backend.quality import load_corrections
+from recon_agent.guardrails import check_narrative
+from recon_agent.tools import ToolSession, _extract_numbers
 
 NO_REASONS = "The lender's system recorded this outcome without giving reasons."
 
 
-def build_recorded_report(decision_id: str, db_url: str) -> ReconstructionReport:
+def correction_notes(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Corrections as report entries (reviewer wording and values only)."""
+    return [
+        {"field": c["field"], "old_value": c["old_value"], "new_value": c["new_value"],
+         "corrected_at": c["created_at"], "reason": c["reason"]}
+        for c in items
+        if isinstance(c.get("new_value"), (str, int, float, bool))
+    ]
+
+
+def _attach_summary(report: dict[str, Any], payload: dict[str, Any], ref: str, backend: Any, db_url: str) -> None:
+    """Optional model-written summary, kept only if every citation and number in it is in the preserved record."""
+    session = ToolSession(db_url=db_url)
+    session._record_citable_item(ref, payload)
+    _extract_numbers(payload, session.returned_numbers)
+    try:
+        summary = backend.generate_summary(report, session)
+    except Exception:
+        return  # the structured report stands on its own
+    if summary is None:
+        return
+    if check_narrative(summary, session):
+        report["plain_language_summary"] = summary
+    else:
+        report["guardrail_rejections"] += 1
+
+
+def build_recorded_report(decision_id: str, db_url: str, backend: Any = None) -> ReconstructionReport:
     """Raises KeyError when the decision does not exist (same as the scored path)."""
     from decision_api.service import reconstruct_decision_from_snapshots  # deferred: avoids an import cycle
 
@@ -87,7 +117,10 @@ def build_recorded_report(decision_id: str, db_url: str) -> ReconstructionReport
         ),
         "human_override": rec["human_override"],
         "recording_mode": "recorded",
+        "corrections": correction_notes(rec["corrections"]),
         "guardrail_rejections": 0,
         "status": "evidence_unavailable" if missing else "ok",
     }
+    if backend is not None and claims and not missing:
+        _attach_summary(report, payload, ref, backend, db_url)
     return ReconstructionReport.model_validate(report)

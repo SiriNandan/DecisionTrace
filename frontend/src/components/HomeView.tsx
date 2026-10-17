@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ProblemKind } from "../api";
+import ServiceProblem from "./ServiceProblem";
 import { DecisionSummaryItem } from "../types";
 import { formatDate, outcomeCopy, riskLabel } from "../lib/plain";
 import OutcomePill from "./OutcomePill";
@@ -20,13 +22,14 @@ export interface HomeViewProps {
   loading: boolean;
   error: string | null;
   signInNeeded?: boolean;
+  problem?: ProblemKind;
   onRetry: () => void;
   onOpen: (id: string) => void;
   recent: { id: string; label: string } | null;
   onSearch?: () => void;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signInNeeded, onRetry, onOpen, recent, onSearch }) => {
+export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signInNeeded, problem, onRetry, onOpen, recent, onSearch }) => {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
   const [sort, setSort] = useState<"new" | "risk-high" | "risk-low">("new");
@@ -191,13 +194,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
           </div>
         )}
 
-        {error && (
-          <div className="cl-note cl-note-bad" role="alert">
-            <strong>{signInNeeded ? "Sign-in is needed to see these decisions." : "We couldn’t load the decisions."}</strong>
-            <span>{signInNeeded ? "Your sign-in is missing or has expired. Please sign in again." : "Check your connection and try again."}</span>
-            <button type="button" className="cl-btn cl-btn-ghost" onClick={onRetry}>Try again</button>
-          </div>
-        )}
+        {error && <ServiceProblem kind={problem ?? (signInNeeded ? "signin" : "other")} what="decisions" onRetry={onRetry} />}
 
         {!loading && !error && shown.length === 0 && (
           <div className="cl-empty" role="status">

@@ -281,3 +281,26 @@ h1:focus { outline: none; }
 .cl-actions { display: flex; gap: 12px; margin: 14px 0; }
 .cl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 @media (max-width: 640px) { .cl-match thead { display: none; } .cl-match tr { display: grid; padding: 8px 0; } }
+
+/* Data checks */
+.cl-findings { list-style: none; padding: 0; display: grid; gap: 14px; margin: 16px 0; }
+.cl-finding { border: 1px solid var(--line); border-left-width: 5px; border-radius: 14px; padding: 14px 18px; background: var(--card); }
+.cl-finding.is-error { border-left-color: var(--bad); } .cl-finding.is-warning { border-left-color: var(--review); } .cl-finding.is-info { border-left-color: var(--line); }
+.cl-finding-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.cl-finding-msg { font-weight: 600; margin: 8px 0 4px; }
+.cl-quality .cl-field { display: grid; gap: 6px; margin: 8px 0; max-width: 520px; }
+.cl-quality input[type="text"] { min-height: 40px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; width: 100%; }
+
+/* Sign-in, identity and staff tools */
+.cl-who { display: flex; align-items: center; gap: 10px; margin-left: auto; font-size: 14px; }
+.cl-who-name { color: var(--ink-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-who-btn { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; min-height: 36px; color: var(--brand); font: inherit; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.cl-who-btn:hover { background: var(--card); }
+.cl-signin .cl-field, .cl-card-rail .cl-field { display: grid; gap: 6px; margin: 10px 0; max-width: 520px; }
+.cl-signin input[type="text"], .cl-signin input[type="password"], .cl-card-rail input[type="text"], .cl-card-rail select { min-height: 40px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; width: 100%; max-width: 100%; }
+.cl-check { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; font-size: 14px; }
+.cl-health { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); }
+.cl-health.is-ok { color: var(--good); } .cl-health.is-needs_upgrade, .cl-health.is-database_down, .cl-health.is-unreachable { color: var(--bad); }
+.cl-flags { padding-left: 18px; margin: 6px 0; display: grid; gap: 6px; }
+.cl-h4 { font-size: 14px; margin: 14px 0 4px; color: var(--ink-2); }
+@media (max-width: 760px) { .cl-who-name { max-width: 84px; font-size: 12px; } }

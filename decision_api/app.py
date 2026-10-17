@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 import uuid
 
@@ -23,8 +24,13 @@ from decision_api.service import (
 )
 from backend.anchoring import append_anchor
 from backend.web import configure_app
+from backend.migrate import apply_migrations, auto_migrate_enabled
+from backend.signals import signals_for_decision
+from decision_api.access_api import router as access_router
 from decision_api.mappings_api import router as mappings_router
-from recon_agent.router import reset_state as reset_reconstruct_cache, router as reconstruct_router
+from decision_api.signals_api import router as signals_router
+from decision_api.quality_api import router as quality_router
+from recon_agent.router import evict_decision, reset_state as reset_reconstruct_cache, router as reconstruct_router
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +74,22 @@ def _anchor(created: dict[str, Any]) -> None:
         logger.exception("Could not write chain-head anchor for %s", created["decision_id"])
 
 
+@asynccontextmanager
+async def _lifespan(_: FastAPI):  # type: ignore[no-untyped-def]
+    """In local development, bring an older database up to date on start so new screens don't hit missing tables."""
+    if auto_migrate_enabled():
+        try:
+            applied = apply_migrations()
+            logger.info("Database is up to date (%d migration files checked).", len(applied))
+        except Exception:
+            logger.exception("Could not update the database on start-up; /health will say what is missing.")
+    yield
+
+
 def create_app() -> FastAPI:
     """Create and configure the DecisionTrace FastAPI application."""
     application = FastAPI(
+        lifespan=_lifespan,
         title="DecisionTrace Decision API",
         description=(
             "Records loan decisions with hash-chained, decision-time evidence that "
@@ -82,6 +101,9 @@ def create_app() -> FastAPI:
     configure_app(application)
     application.include_router(reconstruct_router)
     application.include_router(mappings_router)
+    application.include_router(quality_router)
+    application.include_router(access_router)
+    application.include_router(signals_router)
 
     @application.post("/decide")
     def post_decide(
@@ -153,25 +175,42 @@ def create_app() -> FastAPI:
     @application.post("/overrides")
     def post_override(
         payload: OverrideRequest,
-        principal: Principal = Depends(require_scope("overrides:write")),
+        principal: Principal = Depends(require_scope(None)),
     ) -> dict[str, Any]:
         try:
             dec_uuid = uuid.UUID(payload.decision_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="Invalid decision_id UUID.") from exc
+        if principal.is_customer:
+            # A customer can ask for their own decision to be looked at again. Nothing more.
+            if "review:request" not in principal.scopes or payload.decision_id != principal.decision_id:
+                raise HTTPException(status_code=404, detail="We couldn't find that decision.")
+            if payload.new_outcome != "REFER":
+                raise HTTPException(status_code=403, detail="You can ask for a review, but only a person at the lender can change the result.")
+            payload = payload.model_copy(update={"actor_role": "customer"})
+            kind = "review_request"
+        elif "overrides:write" not in principal.scopes:
+            raise HTTPException(status_code=403, detail="This sign-in isn't allowed to do that.")
+        else:
+            kind = "override"
 
         try:
             with tenant_connection(principal.tenant_id) as conn:
                 ensure_decision_visible(conn, principal, dec_uuid)
+                if kind == "review_request" and conn.execute(
+                    "SELECT 1 FROM overrides WHERE decision_id = %s AND kind = 'review_request'", (dec_uuid,)
+                ).fetchone():
+                    raise HTTPException(status_code=409, detail="You've already asked for a review. A person at your lender will look at it.")
                 result = record_override(
                     conn,
                     decision_id=dec_uuid,
                     new_outcome=payload.new_outcome,
                     reason=payload.reason,
                     actor_role=payload.actor_role,
+                    kind=kind,
                 )
                 log_access(conn, principal, "override", "decision", str(dec_uuid))
-            reset_reconstruct_cache()
+            evict_decision(str(dec_uuid))
             return result
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -185,7 +224,8 @@ def create_app() -> FastAPI:
         principal: Principal = Depends(require_scope("decisions:read")),
     ) -> list[dict[str, Any]]:
         with tenant_connection(principal.tenant_id) as conn:
-            rows = list_decisions(conn, applicant_id=applicant_id, limit=limit, tenant_id=principal.tenant_id)
+            rows = list_decisions(conn, applicant_id=applicant_id, limit=limit, tenant_id=principal.tenant_id,
+                                  only_decision_id=principal.decision_id)
             log_access(conn, principal, "list", "decision", f"n={len(rows)}")
             return rows
 
@@ -199,6 +239,10 @@ def create_app() -> FastAPI:
             with tenant_connection(principal.tenant_id) as conn:
                 ensure_decision_visible(conn, principal, dec_uuid)
                 record = get_decision(conn, dec_uuid)
+                if principal.is_customer:  # internal notes are for the lender's staff only
+                    record["snapshots"] = [s for s in record["snapshots"] if s["evidence_type"] != "analyst_note"]
+                elif "signals:read" in principal.scopes:
+                    record["signals"] = signals_for_decision(conn, principal.tenant_id, str(dec_uuid))
                 log_access(conn, principal, "read", "decision", str(dec_uuid))
                 return record
         except LookupError as exc:

@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { Link, Page } from "../lib/router";
 import { Theme } from "../lib/usage";
+import type { Me } from "../types";
+import { ROLE_LABEL } from "../pages/SignInPage";
 
 const NAV: Array<[Page, string]> = [["home", "Decisions"], ["insights", "Insights"], ["about", "How it works"], ["help", "Help"]];
+// A customer opening their own link sees only their decision and the help pages.
+const CUSTOMER_NAV: Array<[Page, string]> = [["about", "How it works"], ["help", "Help"]];
 
 const THEME_NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
 const THEME_LABEL: Record<Theme, string> = { system: "Auto", light: "Light", dark: "Dark" };
 const THEME_ICON: Record<Theme, string> = { system: "◐", light: "☀", dark: "☾" };
 
-export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) => void }> = ({ page, theme, onTheme }) => (
+export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) => void; me?: Me | null; onSignOut?: () => void }> = ({ page, theme, onTheme, me = null, onSignOut }) => (
   <header className="cl-nav">
     <Link to={{ page: "home" }} className="cl-brand" aria-label="Clearly home">
       <svg viewBox="0 0 32 32" aria-hidden="true" width="28" height="28">
@@ -18,27 +22,44 @@ export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) =
       <span>Clearly</span>
     </Link>
     <nav className="cl-nav-links" aria-label="Main">
-      {NAV.map(([p, label]) => (
+      {(me?.kind === "customer" ? CUSTOMER_NAV : NAV).map(([p, label]) => (
         <Link key={p} to={{ page: p }} aria-current={(page === p || (p === "home" && page === "decision")) ? "page" : undefined}>{label}</Link>
       ))}
     </nav>
+    <div className="cl-who" data-testid="who">
+      {me ? (
+        <>
+          <span className="cl-who-name" id="who-name">
+            {me.kind === "sample" ? "Sample decisions" : me.kind === "customer" ? "Your decision" : `${me.tenant_name} · ${ROLE_LABEL[me.role] ?? me.role}`}
+          </span>
+          <button type="button" className="cl-who-btn" onClick={onSignOut} aria-describedby="who-name">{me.kind === "sample" ? "Leave samples" : "Sign out"}</button>
+        </>
+      ) : (
+        <Link to={{ page: "signin" }} className="cl-who-btn" aria-current={page === "signin" ? "page" : undefined}>Sign in</Link>
+      )}
+    </div>
     <button type="button" className="cl-theme" onClick={() => onTheme(THEME_NEXT[theme])} aria-label={`Colour theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[THEME_NEXT[theme]]}`} title={`Theme: ${THEME_LABEL[theme]}`}>
       <span aria-hidden="true">{THEME_ICON[theme]}</span><span className="cl-theme-l">{THEME_LABEL[theme]}</span>
     </button>
   </header>
 );
 
-export const SiteFooter: React.FC<{ onTour: () => void }> = ({ onTour }) => (
+export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; customer?: boolean }> = ({ onTour, staff = false, customer = false }) => (
   <footer className="cl-footer">
     <div className="cl-footer-grid">
       <div>
         <p className="cl-footer-brand">Clearly</p>
         <p className="cl-muted">Loan decisions, explained. It shows how each decision was reached. It never makes or changes decisions on its own.</p>
       </div>
-      <nav aria-label="Explore"><h2 className="cl-footer-h">Explore</h2>
-        <Link to={{ page: "home" }}>Decisions</Link><Link to={{ page: "insights" }}>Insights</Link></nav>
-      <nav aria-label="For lenders"><h2 className="cl-footer-h">For lenders</h2>
-        <Link to={{ page: "connect" }}>Connect your data</Link></nav>
+      {!customer && (
+        <nav aria-label="Explore"><h2 className="cl-footer-h">Explore</h2>
+          <Link to={{ page: "home" }}>Decisions</Link><Link to={{ page: "insights" }}>Insights</Link></nav>
+      )}
+      {staff && (
+        <nav aria-label="For lenders"><h2 className="cl-footer-h">For lenders</h2>
+          <Link to={{ page: "connect" }}>Connect your data</Link><Link to={{ page: "quality" }}>Data checks</Link>
+          <Link to={{ page: "signals" }}>Risk signals</Link></nav>
+      )}
       <nav aria-label="Learn"><h2 className="cl-footer-h">Learn</h2>
         <Link to={{ page: "about" }}>How it works</Link><Link to={{ page: "help" }}>Help &amp; FAQ</Link>
         <button type="button" className="cl-footer-btn" onClick={onTour}>Welcome tour</button></nav>

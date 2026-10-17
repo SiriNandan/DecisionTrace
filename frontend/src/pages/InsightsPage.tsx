@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import { ProblemKind } from "../api";
+import ServiceProblem from "../components/ServiceProblem";
 import { DecisionSummaryItem } from "../types";
 import { computeStats } from "../lib/stats";
 import { outcomeCopy, riskLabel } from "../lib/plain";
@@ -30,11 +32,12 @@ export interface InsightsPageProps {
   cases: DecisionSummaryItem[];
   loading: boolean;
   error: string | null;
+  problem?: ProblemKind;
   activity: Activity;
   onActivityReset: () => void;
 }
 
-export const InsightsPage: React.FC<InsightsPageProps> = ({ cases, loading, error, activity, onActivityReset }) => {
+export const InsightsPage: React.FC<InsightsPageProps> = ({ cases, loading, error, problem, activity, onActivityReset }) => {
   const s = useMemo(() => computeStats(cases), [cases]);
   const maxMonth = Math.max(...s.months.map((m) => m.count), 1);
   const byId = useMemo(() => new Map(cases.map((c) => [c.decision_id, c])), [cases]);
@@ -46,7 +49,7 @@ export const InsightsPage: React.FC<InsightsPageProps> = ({ cases, loading, erro
       <h1 className="cl-page-title" tabIndex={-1}>The big picture</h1>
       <p className="cl-page-lede">How decisions are being made across all recorded applications, and how you’ve used Clearly.</p>
 
-      {error && <div className="cl-note cl-note-bad" role="alert"><strong>We couldn’t load the numbers.</strong><span>Check your connection and refresh the page.</span></div>}
+      {error && <ServiceProblem kind={problem ?? "other"} what="page" />}
       {loading && <div className="cl-skeleton cl-skel-hero" role="status" aria-label="Loading insights" />}
 
       {!loading && !error && s.total === 0 && (

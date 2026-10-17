@@ -81,12 +81,95 @@ def test_decision_without_reasons_says_so_instead_of_inventing_any(client: TestC
     assert all(c["field"] != "reason_code" for g in rep["reasons"] for c in g["claims"])
 
 
-def test_recorded_reports_do_not_call_a_model(client: TestClient, sandbox: list[dict], monkeypatch: pytest.MonkeyPatch) -> None:
-    import recon_agent.service as svc
+def test_recorded_reports_never_ask_a_model_to_rebuild_the_decision(
+    client: TestClient, sandbox: list[dict], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from recon_agent.backends import FakeLLMBackend
 
-    monkeypatch.setattr(svc, "get_llm_backend", lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM used")))
+    def boom(*a, **k):
+        raise AssertionError("generate_report used")
+
+    monkeypatch.setattr(FakeLLMBackend, "generate_report", boom)
     rep = report_for(client, sandbox[0], post_fixture(client, sandbox[0], "approve"))
     assert rep["plain_language_summary"] is None and rep["outcome"] == "APPROVE"
+
+
+class _Writer:
+    """Stands in for a model that writes a summary."""
+
+    def __init__(self, text):
+        self.text = text
+
+    def generate_summary(self, report, session):
+        if isinstance(self.text, Exception):
+            raise self.text
+        return self.text
+
+
+def _recorded_with(sandbox, client, writer):
+    from backend.quality import load_corrections  # noqa: F401
+    from recon_agent.recorded import build_recorded_report
+
+    dec = post_fixture(client, sandbox[0], "decline")
+    env = load_fixtures()["decline"]
+    return env, build_recorded_report(dec, os.environ["DB_URL"], writer)
+
+
+def test_a_model_written_summary_is_kept_only_when_grounded(client: TestClient, sandbox: list[dict]) -> None:
+    env = load_fixtures()["decline"]
+    ref = f"lender_decision:{env['external_id']}"
+    good = f"Your lender declined the application [{ref}]. It recorded a risk estimate of {env['score']} [{ref}]."
+    _, ok = _recorded_with(sandbox, client, _Writer(good))
+    assert ok.plain_language_summary == good and ok.guardrail_rejections == 0
+
+    invented = f"Your lender declined the application because income was 12345 [{ref}]."
+    _, bad_number = _recorded_with(sandbox, client, _Writer(invented))
+    assert bad_number.plain_language_summary is None and bad_number.guardrail_rejections == 1
+
+    _, bad_cite = _recorded_with(sandbox, client, _Writer("Declined [bureau:made-up]."))
+    assert bad_cite.plain_language_summary is None and bad_cite.guardrail_rejections == 1
+    _, no_cite = _recorded_with(sandbox, client, _Writer("Declined, no source given."))
+    assert no_cite.plain_language_summary is None and no_cite.guardrail_rejections == 1
+
+    for quiet in (None, RuntimeError("model down")):
+        _, rep = _recorded_with(sandbox, client, _Writer(quiet))
+        assert rep.plain_language_summary is None and rep.guardrail_rejections == 0 and rep.status == "ok"
+
+
+def test_reports_say_what_was_corrected_after_the_decision(client: TestClient, sandbox: list[dict]) -> None:
+    from backend.auth import tenant_connection
+    from backend.quality import append_correction
+
+    t = sandbox[1]
+    dec = post_fixture(client, t, "approve")
+    assert report_for(client, t, dec)["corrections"] == []
+    with tenant_connection(t["tenant_id"]) as conn:
+        ref = next(i["evidence_ref"] for i in load_fixtures()["approve"]["evidence"] if i["evidence_type"] == "application")
+        append_correction(conn, tenant_id=t["tenant_id"], decision_id=dec, evidence_ref=ref, field_name="income_annual",
+                          new_value=41000.0, reason="Payslip shows a higher figure.", source="person", role="lender_analyst",
+                          credential_id=None, finding_id=None)
+    recon_router.reset_state()
+    rep = report_for(client, t, dec)
+    assert [(c["field"], c["new_value"], c["reason"]) for c in rep["corrections"]] == [("income_annual", 41000.0, "Payslip shows a higher figure.")]
+    assert rep["status"] == "ok" and rep["chain_verified"] is True  # the decision's own evidence is unchanged
+
+
+def test_scored_reports_carry_corrections_too(client: TestClient) -> None:
+    from backend.auth import tenant_connection
+    from backend.quality import append_correction
+
+    demo = {"X-API-Key": os.environ["DT_API_KEY"]}
+    # other tests tamper with some seeded decisions on purpose, so pick one whose chain is intact
+    dec = next(d["decision_id"] for d in client.get("/decisions?limit=50", headers=demo).json()
+               if client.get(f"/decisions/{d['decision_id']}/verify", headers=demo).json()["chain_valid"])
+    ref = next(s["evidence_ref"] for s in client.get(f"/decisions/{dec}", headers=demo).json()["snapshots"] if s["evidence_type"] == "application")
+    with tenant_connection("demo") as conn:
+        append_correction(conn, tenant_id="demo", decision_id=dec, evidence_ref=ref, field_name="annual_income", new_value=1.0,
+                          reason="Demo correction.", source="person", role="admin", credential_id=None, finding_id=None)
+    recon_router.reset_state()
+    rep = client.post(f"/reconstruct/{dec}", headers=demo).json()
+    assert rep["recording_mode"] == "scored" and rep["corrections"][0]["field"] == "annual_income"
+    assert rep["chain_verified"] is True
 
 
 def test_override_and_tampering_show_in_the_recorded_report(client: TestClient, sandbox: list[dict]) -> None:

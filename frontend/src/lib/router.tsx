@@ -1,8 +1,8 @@
 import React from "react";
 
-export type Page = "home" | "decision" | "about" | "help" | "insights" | "connect" | "privacy" | "terms" | "accessibility" | "notfound";
+export type Page = "home" | "decision" | "about" | "help" | "insights" | "connect" | "quality" | "signals" | "signin" | "privacy" | "terms" | "accessibility" | "notfound";
 
-const PAGES = new Set(["about", "help", "insights", "connect", "privacy", "terms", "accessibility"]);
+const PAGES = new Set(["about", "help", "insights", "connect", "quality", "signals", "signin", "privacy", "terms", "accessibility"]);
 
 export interface Route {
   page: Page;

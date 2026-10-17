@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from backend.contract import ReconstructionReport, ReconstructionStatus
 from recon_agent.backends import LLMBackend, get_llm_backend
 from recon_agent.guardrails import apply_claim_guardrails, check_narrative
-from recon_agent.recorded import build_recorded_report
+from recon_agent.recorded import build_recorded_report, correction_notes
 from recon_agent.tools import (
     DEFAULT_MAX_TOOL_CALLS,
     DEFAULT_REPLAY_TOLERANCE,
@@ -52,7 +52,7 @@ def _fetch_fallback_decision_meta(decision_id: str, db_url: str) -> dict[str, An
                 """
                 SELECT new_outcome, reason, actor_role, created_at
                 FROM overrides
-                WHERE decision_id = %s
+                WHERE decision_id = %s AND kind = 'override'
                 ORDER BY created_at DESC
                 LIMIT 1;
                 """,
@@ -114,6 +114,14 @@ def _build_fallback_report(
     )
 
 
+def _correction_notes(decision_id: str, db_url: str) -> list[dict[str, Any]]:
+    from backend.quality import load_corrections
+
+    with psycopg.connect(db_url, connect_timeout=10) as conn:
+        items, _, _ = load_corrections(conn, str(uuid.UUID(str(decision_id))))
+    return correction_notes(items)
+
+
 def _recording_mode(decision_id: str, db_url: str) -> str:
     with psycopg.connect(db_url, connect_timeout=10) as conn:
         row = conn.execute(
@@ -170,14 +178,14 @@ def reconstruct_decision(
     resolved_db_url = fast_db_url(db_url)
     meta = _fetch_fallback_decision_meta(decision_id, resolved_db_url)
 
+    active_backend = backend or get_llm_backend(backend_name)
+
     # Decisions the lender made itself have nothing to re-score; explain them straight from the preserved record.
     if _recording_mode(decision_id, resolved_db_url) == "recorded":
-        recorded_report = build_recorded_report(decision_id, resolved_db_url)
+        recorded_report = build_recorded_report(decision_id, resolved_db_url, active_backend)
         if return_session:
             return recorded_report, ToolSession(db_url=resolved_db_url)
         return recorded_report
-
-    active_backend = backend or get_llm_backend(backend_name)
 
     start_time = clock()
     overall_deadline = start_time + float(timeout_seconds)
@@ -258,6 +266,7 @@ def reconstruct_decision(
                     else:
                         raw_report["guardrail_rejections"] += 1
 
+            raw_report["corrections"] = _correction_notes(decision_id, resolved_db_url)
             validated = ReconstructionReport.model_validate(raw_report)
             return (validated, session) if return_session else validated
 

@@ -157,8 +157,8 @@ def seed_scenarios(
 
     with psycopg.connect(target_url, connect_timeout=5) as conn:
         with conn.cursor() as cur:
-            if MIGRATION_FILE.is_file():
-                cur.execute(MIGRATION_FILE.read_text(encoding="utf-8"))
+            for migration in sorted(MIGRATION_FILE.parent.glob("*.sql")):  # every update, so older databases work too
+                cur.execute(migration.read_text(encoding="utf-8"))
 
         for scen in scenarios:
             name = str(scen["name"])
@@ -175,6 +175,15 @@ def seed_scenarios(
 
             # Ensure idempotency if re-seeding
             with conn.cursor() as cur:
+                # Everything that points at the decision goes first (links, signals, findings and corrections included),
+                # so re-seeding a database that has been used doesn't trip over them.
+                cur.execute("DELETE FROM claim_revocations WHERE claim_id IN (SELECT claim_id FROM claim_links WHERE decision_id = %s);", (dec_uuid,))
+                cur.execute("DELETE FROM claim_links WHERE decision_id = %s;", (dec_uuid,))
+                cur.execute("DELETE FROM signal_reviews WHERE signal_id IN (SELECT signal_id FROM risk_signals WHERE decision_id = %s);", (dec_uuid,))
+                cur.execute("DELETE FROM risk_signals WHERE decision_id = %s;", (dec_uuid,))
+                cur.execute("DELETE FROM corrections WHERE decision_id = %s;", (dec_uuid,))
+                cur.execute("DELETE FROM finding_reviews WHERE finding_id IN (SELECT finding_id FROM quality_findings WHERE decision_id = %s);", (dec_uuid,))
+                cur.execute("DELETE FROM quality_findings WHERE decision_id = %s;", (dec_uuid,))
                 cur.execute("DELETE FROM evidence_status WHERE decision_id = %s;", (dec_uuid,))
                 cur.execute("DELETE FROM overrides WHERE decision_id = %s;", (dec_uuid,))
                 cur.execute("DELETE FROM decision_snapshots WHERE decision_id = %s;", (dec_uuid,))

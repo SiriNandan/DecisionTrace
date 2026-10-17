@@ -191,7 +191,7 @@ class ToolSession:
                     """
                     SELECT override_id, actor_role, new_outcome, reason, created_at
                     FROM overrides
-                    WHERE decision_id = %s
+                    WHERE decision_id = %s AND kind = 'override'
                     ORDER BY created_at DESC, override_id DESC;
                     """,
                     (dec_uuid,),
@@ -371,6 +371,8 @@ class ToolSession:
         for seq, ev_type, ev_ref, src_id, src_ts, cap_at, p_sha, payload in rows:
             ref_str = str(ev_ref)
             type_str = str(ev_type)
+            if type_str == "analyst_note":  # internal notes are never shown to a model or put in a report
+                continue
             if not filter_all and ref_str != target and type_str != target:
                 continue
 

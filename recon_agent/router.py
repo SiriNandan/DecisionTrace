@@ -19,6 +19,11 @@ _limiter = SlidingWindowLimiter(int(os.environ.get("RECON_RATE_LIMIT_PER_MINUTE"
 _cache = TTLCache(float(os.environ.get("RECON_CACHE_TTL_SECONDS", "60")))
 
 
+def evict_decision(decision_id: str) -> None:
+    """Forget cached reports for one decision (after an override). Rate limits are untouched."""
+    _cache.evict_suffix(f"|{decision_id}")
+
+
 def reset_state() -> None:
     """Clear the cache and rate-limit counters (used by tests)."""
     _cache.clear()

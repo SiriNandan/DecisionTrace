@@ -55,6 +55,7 @@ export interface ReconstructionReportContract {
   human_override: OverrideContract | null;
   plain_language_summary?: string | null;
   recording_mode?: "scored" | "recorded";
+  corrections?: Array<{ field: string; old_value: unknown; new_value: unknown; corrected_at: string; reason: string }>;
   guardrail_rejections: number;
   status: ReconstructionStatus;
 }
@@ -117,6 +118,10 @@ export interface DecisionDetailRecord {
   snapshots: DecisionSnapshotRow[];
   preserved_applicant_params?: Record<string, unknown>;
   recording_mode?: "scored" | "recorded";
+  corrections?: CorrectionItem[];
+  corrections_valid?: boolean;
+  signals?: SignalItem[];
+  review_requests?: Array<{ reason: string; created_at: string }>;
 }
 
 export interface CreateOverridePayload {
@@ -195,4 +200,88 @@ export interface SourceData {
   format: SourceFormat;
   content?: string;
   rows?: Array<Record<string, unknown>>;
+}
+
+/* ---- Data checks and corrections ---- */
+
+export interface CorrectionItem {
+  seq: number;
+  evidence_ref: string;
+  field: string;
+  old_value: unknown;
+  new_value: unknown;
+  reason: string;
+  source: "suggested" | "person";
+  created_at: string;
+}
+
+export interface FindingItem {
+  finding_id: number;
+  decision_id: string;
+  rule_id: string;
+  kind: "missing" | "implausible" | "conflict" | "inconsistent" | "outlier";
+  severity: "info" | "warning" | "error";
+  evidence_ref: string;
+  field: string;
+  observed: unknown;
+  message: string;
+  suggested_fix: { evidence_ref: string; field: string; new_value: number | string; basis: string } | null;
+  ai_note: string | null;
+  found_by: string;
+  created_at: string;
+  status: "open" | "corrected" | "dismissed";
+}
+
+export interface QualityRunResult {
+  decisions_checked: number;
+  new_findings: number;
+  open_total: number;
+  by_severity: Record<string, number>;
+  notes: string[];
+  ai_used: boolean;
+}
+
+/* ---- Sign-in, customer links and risk signals ---- */
+
+export interface Me {
+  role: string;
+  kind: "staff" | "customer" | "sample";
+  tenant_id: string;
+  tenant_name: string;
+  label: string;
+  scopes: string[];
+  decision_id: string | null;
+  expires_at: string | null;
+}
+
+export interface ServiceHealth {
+  status: "ok" | "needs_upgrade" | "database_down" | "unreachable" | "unknown";
+  database: string;
+}
+
+export interface ClaimLinkCreated {
+  claim_id: number;
+  decision_id: string;
+  token: string;
+  expires_at: string;
+  path: string;
+}
+
+export interface SignalItem {
+  signal_id: number;
+  decision_id: string | null;
+  scope: "decision" | "batch" | "access";
+  signal_type: string;
+  severity: "info" | "warning" | "high";
+  message: string;
+  details: Record<string, unknown>;
+  created_at: string;
+  status: "open" | "acknowledged" | "cleared";
+}
+
+export interface SignalRunResult {
+  decisions_checked: number;
+  new_signals: number;
+  open_total: number;
+  by_severity: Record<string, number>;
 }

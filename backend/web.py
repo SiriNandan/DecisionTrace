@@ -10,12 +10,14 @@ from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 ALLOWED_METHODS = ["GET", "POST", "OPTIONS"]
 ALLOWED_HEADERS = [
     "Content-Type",
     "X-API-Key",
+    "X-Claim-Token",
     "Idempotency-Key",
     "X-Idempotency-Key",
     "X-Decision-Date",
@@ -28,8 +30,32 @@ def cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+UPGRADE_MESSAGE = "The service's database needs an update. Restart the service, or ask whoever runs it to apply the latest updates."
+
+
 def configure_app(app: FastAPI) -> None:
-    """Attach CORS (explicit origins/methods/headers) and baseline security headers."""
+    """Attach error handling, CORS (explicit origins/methods/headers) and baseline security headers.
+
+    Registration order matters: the first middleware added is the innermost. The catch-all sits inside CORS so that
+    even a server error comes back with CORS headers; otherwise a browser reports it as "network error".
+    """
+
+    @app.middleware("http")
+    async def catch_all(request: Request, call_next):  # type: ignore[no-untyped-def]
+        try:
+            return await call_next(request)
+        except Exception as exc:  # unexpected failure: answer in plain words instead of dropping the connection
+            import logging
+
+            import psycopg
+
+            logging.getLogger(__name__).exception("Unhandled error on %s %s", request.method, request.url.path)
+            if isinstance(exc, (psycopg.errors.UndefinedTable, psycopg.errors.UndefinedColumn, psycopg.errors.UndefinedFunction)):
+                return JSONResponse(status_code=503, content={"detail": UPGRADE_MESSAGE, "code": "needs_upgrade"})
+            if isinstance(exc, psycopg.OperationalError):
+                return JSONResponse(status_code=503, content={"detail": "The service can't reach its database right now.", "code": "database_down"})
+            return JSONResponse(status_code=500, content={"detail": "Something went wrong on our side. Please try again.", "code": "server_error"})
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins(),
@@ -112,3 +138,9 @@ class TTLCache:
     def clear(self) -> None:
         with self._lock:
             self._items.clear()
+
+    def evict_suffix(self, suffix: str) -> None:
+        """Drop the entries whose key ends with `suffix` (one decision), leaving everyone else's alone."""
+        with self._lock:
+            for k in [k for k in self._items if k.endswith(suffix)]:
+                del self._items[k]

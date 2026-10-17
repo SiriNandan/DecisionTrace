@@ -146,6 +146,9 @@ AUTH = {"X-API-Key": TEST_KEY}
 def _demo_admin_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every test starts with a known admin key for the demo tenant; tests may override DT_API_KEY."""
     monkeypatch.setenv("DT_API_KEY", TEST_KEY)
+    from backend.auth import failures
+
+    failures.reset()
 
 
 @pytest.fixture(scope="session", autouse=True)

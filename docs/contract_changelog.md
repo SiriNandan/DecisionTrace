@@ -2,6 +2,12 @@
 
 All changes to `backend/contract.py` (`ReconstructionReport`, `RuleCheck`, `Reason`, `Claim`, `Override`) require a dated entry in this file.
 
+## [1.2.0] - 2026-10-17
+
+### Added
+- `ReconstructionReport.corrections` (`list[CorrectionNote]`, default empty) and `CorrectionNote` (`field`, `old_value`, `new_value`, `corrected_at`, `reason`): corrections recorded after the decision. The claims, rule checks and score in the report still describe the original inputs the decision used. Backward compatible.
+- For `recorded` reports, `plain_language_summary` may now be present. It follows the existing rule: kept only if `check_narrative` finds every `[citation]` and number in the preserved record; otherwise dropped and counted in `guardrail_rejections`.
+
 ## [1.1.0] - 2026-10-17
 
 ### Added

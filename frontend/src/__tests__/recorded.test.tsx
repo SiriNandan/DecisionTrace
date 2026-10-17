@@ -65,6 +65,20 @@ describe("a decision the lender made in its own system", () => {
     expect(screen.getAllByText(/didn’t give a reason/).length).toBeGreaterThan(0);
   });
 
+  test("a checked, model-written summary is shown with the AI note; without one the lender's own words are used", () => {
+    const { record, report } = recordedPair([{ code: "DTI_HIGH", text: "Debt is high compared with income." }]);
+    const written = "Your lender declined the application [lender_decision:L-1].";
+    const view = (r: typeof report) =>
+      render(<DecisionView record={record} report={r} reportLoading={false} reportError={null} onRetryReport={noop} onBack={noop} />);
+    const a = view({ ...report, plain_language_summary: written });
+    expect(screen.getByTestId("plain-summary")).toHaveTextContent("Your lender declined the application");
+    expect(screen.getByText(/Written by AI, and checked against the saved evidence/)).toBeInTheDocument();
+    a.unmount();
+    view(report);
+    expect(screen.queryByText(/Written by AI/)).toBeNull();
+    expect(screen.getByTestId("plain-summary")).toHaveTextContent("Debt is high compared with income.");
+  });
+
   test("uses no internal terms and has no accessibility violations", async () => {
     const { container } = show([{ code: "X", text: "A reason." }]);
     const clone = container.cloneNode(true) as HTMLElement;

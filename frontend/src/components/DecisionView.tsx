@@ -10,6 +10,7 @@ import {
   evidenceKind,
   featureLabel,
   formatDate,
+  formatFieldValue,
   formatRuleValue,
   outcomeCopy,
   riskLabel,
@@ -30,6 +31,10 @@ export interface DecisionViewProps {
   onBack: () => void;
   onSubmitReview?: (p: CreateOverridePayload) => Promise<void>;
   onTrack?: (e: "print" | "copy") => void;
+  /** The signed-in person is the customer, opening their own link. */
+  customer?: boolean;
+  /** Lender-only tools (risk signals, customer link) shown at the top of the side panel. */
+  staffTools?: React.ReactNode;
 }
 
 interface RuleRow {
@@ -104,7 +109,7 @@ function RiskRing({ score, tone }: { score: number; tone: string }) {
 }
 
 export const DecisionView: React.FC<DecisionViewProps> = ({
-  record, report, reportLoading, reportError, onRetryReport, onBack, onSubmitReview, onTrack,
+  record, report, reportLoading, reportError, onRetryReport, onBack, onSubmitReview, onTrack, customer = false, staffTools,
 }) => {
   const [openRefs, setOpenRefs] = useState<Set<string>>(new Set());
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -224,7 +229,7 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
 
   return (
     <article className="cl-decision" data-testid="decision-record">
-      <button type="button" className="cl-back" onClick={onBack}>← All decisions</button>
+      {!customer && <button type="button" className="cl-back" onClick={onBack}>← All decisions</button>}
 
       {!chainOk && (
         <div className="cl-note cl-note-bad cl-note-big" role="alert" data-testid="integrity-warning">
@@ -248,6 +253,29 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
         </div>
         <RiskRing score={record.score} tone={copy.tone} />
       </header>
+
+      {(record.corrections?.length ?? 0) > 0 && (
+        <div className={`cl-note ${record.corrections_valid === false ? "cl-note-bad" : "cl-note-review"}`} data-testid="corrections-note">
+          <strong>Some details were corrected after this decision was made.</strong>
+          <span>The decision was based on the original details, which are kept as they were.</span>
+          <ul>
+            {record.corrections!.map((c) => (
+              <li key={c.seq}>{featureLabel(c.field)}: was {c.old_value == null ? "not recorded" : formatFieldValue(c.field, c.old_value)}, corrected to {formatFieldValue(c.field, c.new_value)} on {formatDate(c.created_at)}. {c.reason}</li>
+            ))}
+          </ul>
+          {record.corrections_valid === false && <span>The list of corrections may have been changed since it was written. Please ask your lender.</span>}
+        </div>
+      )}
+
+      {(record.review_requests?.length ?? 0) > 0 && (
+        <div className="cl-note cl-note-review" data-testid="review-requested">
+          <strong>A review was asked for.</strong>
+          <span>
+            {formatDate(record.review_requests![0].created_at, true)}: “{record.review_requests![0].reason}”.
+            A person at the lender will look at it. The decision stays as it is until they do.
+          </span>
+        </div>
+      )}
 
       {lastOverride && (
         <div className="cl-note cl-note-review" data-testid="recorded-override-banner">
@@ -438,7 +466,11 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
 
           <section id="review" className="cl-section" aria-labelledby="review-h">
             <h2 id="review-h" className="cl-h2">Think this is wrong?</h2>
-            <ReviewForm decisionId={record.decision_id} currentOutcome={record.effective_outcome} onSubmit={onSubmitReview} />
+            {customer && (record.review_requests?.length ?? 0) > 0 ? (
+              <p className="cl-muted" data-testid="review-already">You’ve asked for a review. A person at the lender will look at it.</p>
+            ) : (
+              <ReviewForm decisionId={record.decision_id} currentOutcome={record.effective_outcome} onSubmit={onSubmitReview} customer={customer} />
+            )}
             {overrides.length > 0 && (
               <>
                 <h3 className="cl-h3">Review history</h3>
@@ -471,6 +503,7 @@ export const DecisionView: React.FC<DecisionViewProps> = ({
         </div>
 
         <aside className="cl-col-rail" aria-label="Trust and actions">
+          {staffTools}
           <div className="cl-card-rail" data-testid="trust-panel">
             <h2 className="cl-h3">Can you trust this record?</h2>
             <ul className="cl-trust">

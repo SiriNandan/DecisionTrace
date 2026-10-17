@@ -246,7 +246,13 @@ describe("Site pages, onboarding and usage", () => {
 
   test("insights page handles loading failure gracefully", () => {
     render(<InsightsPage cases={[]} loading={false} error="x" activity={readActivity()} onActivityReset={noop} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("couldn’t load the numbers");
+    expect(screen.getByRole("alert")).toHaveTextContent("couldn’t load this page");
+  });
+
+  test("insights tells a signed-out visitor to sign in, not to check their connection", () => {
+    render(<InsightsPage cases={[]} loading={false} error="x" problem="signin" activity={readActivity()} onActivityReset={noop} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Sign-in is needed to see this page.");
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/connection/i);
   });
 });
 

@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-0118",
+  "application_id": "APP-0118",
+  "document_id": "PAYSLIP-APP-0118",
+  "employer": "Cambridgeshire Biotech Labs",
+  "currency": "GBP",
+  "monthly_income": 2627.16,
+  "income_annual": 31525.95,
+  "status": "processing",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-13T13:58:00Z"
+}

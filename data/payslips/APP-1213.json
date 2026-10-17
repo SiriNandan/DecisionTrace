@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-1213",
+  "application_id": "APP-1213",
+  "document_id": "PAYSLIP-APP-1213",
+  "employer": "Northbridge Logistics Ltd",
+  "currency": "GBP",
+  "monthly_income": 1370.62,
+  "income_annual": 16447.43,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-14T15:15:00Z"
+}

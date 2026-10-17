@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-0133",
+  "application_id": "APP-0133",
+  "document_id": "PAYSLIP-APP-0133",
+  "employer": "Severn Energy Services Ltd",
+  "currency": "GBP",
+  "monthly_income": 8007.75,
+  "income_annual": 96092.96,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-15T04:31:00Z"
+}

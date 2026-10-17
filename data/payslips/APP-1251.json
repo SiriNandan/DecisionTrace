@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-1251",
+  "application_id": "APP-1251",
+  "document_id": "PAYSLIP-APP-1251",
+  "employer": "Thames Valley Engineering PLC",
+  "currency": "GBP",
+  "monthly_income": 5300.89,
+  "income_annual": 63610.68,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-14T20:50:00Z"
+}

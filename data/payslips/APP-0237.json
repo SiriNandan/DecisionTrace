@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-0237",
+  "application_id": "APP-0237",
+  "document_id": "PAYSLIP-APP-0237",
+  "employer": "Pennine Manufacturing Co",
+  "currency": "GBP",
+  "monthly_income": 1726.52,
+  "income_annual": 20718.2,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-14T16:11:00Z"
+}

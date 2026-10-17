@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-1148",
+  "application_id": "APP-1148",
+  "document_id": "PAYSLIP-APP-1148",
+  "employer": "Caledonia Software Systems Ltd",
+  "currency": "GBP",
+  "monthly_income": 1596.26,
+  "income_annual": 19155.16,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-13T23:49:00Z"
+}

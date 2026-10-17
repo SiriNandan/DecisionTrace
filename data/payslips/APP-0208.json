@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-0208",
+  "application_id": "APP-0208",
+  "document_id": "PAYSLIP-APP-0208",
+  "employer": "Cotswold Food & Beverage Ltd",
+  "currency": "GBP",
+  "monthly_income": 3440.45,
+  "income_annual": 41285.45,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-13T12:35:00Z"
+}

@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: decisiontrace_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-decisiontrace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-decisiontrace_local_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-decisiontrace}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-decisiontrace} -d $${POSTGRES_DB:-decisiontrace}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+

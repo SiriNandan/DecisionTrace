@@ -1,0 +1,62 @@
+# SYNTHETIC DATA - FOR DEMONSTRATION.
+seed: 42
+num_applicants: 2000
+active_profile: uk_retail
+
+profiles:
+  uk_retail:
+    region_profile: uk_retail
+    currency: GBP
+    reference_timestamp: "2026-01-15T12:00:00Z"
+    bureau_source_id: "bureau_equifax_uk_syn_v1"
+    account_source_id: "core_banking_uk_syn_v1"
+    income_distribution:
+      type: lognormal
+      mean_log: 10.65
+      sigma_log: 0.52
+      min_annual_income: 14000.0
+      max_annual_income: 350000.0
+    age_bands:
+      - band: "18-24"
+        weight: 0.12
+        emp_months_mean: 18
+        emp_months_std: 10
+        emp_months_max: 72
+        acct_age_mean: 24
+        acct_age_std: 12
+      - band: "25-34"
+        weight: 0.28
+        emp_months_mean: 48
+        emp_months_std: 24
+        emp_months_max: 144
+        acct_age_mean: 64
+        acct_age_std: 28
+      - band: "35-44"
+        weight: 0.26
+        emp_months_mean: 96
+        emp_months_std: 42
+        emp_months_max: 240
+        acct_age_mean: 120
+        acct_age_std: 45
+      - band: "45-54"
+        weight: 0.20
+        emp_months_mean: 144
+        emp_months_std: 60
+        emp_months_max: 360
+        acct_age_mean: 180
+        acct_age_std: 60
+      - band: "55-64"
+        weight: 0.10
+        emp_months_mean: 192
+        emp_months_std: 72
+        emp_months_max: 440
+        acct_age_mean: 230
+        acct_age_std: 70
+      - band: "65+"
+        weight: 0.04
+        emp_months_mean: 210
+        emp_months_std: 84
+        emp_months_max: 480
+        acct_age_mean: 260
+        acct_age_std: 80
+

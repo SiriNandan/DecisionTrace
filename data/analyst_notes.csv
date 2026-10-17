@@ -1,0 +1,62 @@
+# SYNTHETIC DATA - FOR DEMONSTRATION.
+note_id,applicant_id,application_id,author_role,created_at,has_embedded_pii,note_text
+NOTE-0001,APP-0072,APP-0072,underwriter,2026-01-15T00:18:00Z,false,Referred case for APP-0072: DTI ratio is 0.335646 with credit score 630. Income proof matches declared annual income of 58031.54 GBP.
+NOTE-0002,APP-0078,APP-0078,credit_analyst,2026-01-15T05:26:00Z,false,Manual underwriting review for APP-0078: 0 delinquency event(s) in 24m window; employment tenure is 78 months.
+NOTE-0003,APP-0092,APP-0092,underwriter,2026-01-15T06:19:00Z,false,Borderline affordability check for APP-0092: monthly income 3217.92 GBP supports requested loan amount 5922.17 GBP.
+NOTE-0004,APP-0167,APP-0167,credit_analyst,2026-01-15T09:45:00Z,false,Underwriter assessment for APP-0167: account age 125 months provides stable history despite intermediate score 599.
+NOTE-0005,APP-0182,APP-0182,underwriter,2026-01-15T03:08:00Z,false,Referred under policy review rules for APP-0182: verified employer payslip status and consistent debt service obligations.
+NOTE-0006,APP-0205,APP-0205,credit_analyst,2026-01-15T06:20:00Z,true,Referred case for APP-0205: DTI ratio is 0.134193 with credit score 637. Income proof matches declared annual income of 43619.89 GBP. Applicant confirmed salary deposit into account 4491-8820-1134 and callback number +44 7700 900123.
+NOTE-0007,APP-0263,APP-0263,underwriter,2026-01-15T07:46:00Z,false,Manual underwriting review for APP-0263: 1 delinquency event(s) in 24m window; employment tenure is 153 months.
+NOTE-0008,APP-0278,APP-0278,credit_analyst,2026-01-15T03:24:00Z,false,Borderline affordability check for APP-0278: monthly income 1512.10 GBP supports requested loan amount 4572.02 GBP.
+NOTE-0009,APP-0282,APP-0282,underwriter,2026-01-15T09:38:00Z,false,Underwriter assessment for APP-0282: account age 56 months provides stable history despite intermediate score 473.
+NOTE-0010,APP-0315,APP-0315,credit_analyst,2026-01-15T05:51:00Z,false,Referred under policy review rules for APP-0315: verified employer payslip status and consistent debt service obligations.
+NOTE-0011,APP-0341,APP-0341,underwriter,2026-01-15T11:50:00Z,false,Referred case for APP-0341: DTI ratio is 0.520419 with credit score 611. Income proof matches declared annual income of 66233.03 GBP.
+NOTE-0012,APP-0342,APP-0342,credit_analyst,2026-01-15T03:38:00Z,false,Manual underwriting review for APP-0342: 0 delinquency event(s) in 24m window; employment tenure is 0 months.
+NOTE-0013,APP-0364,APP-0364,underwriter,2026-01-15T05:43:00Z,false,Borderline affordability check for APP-0364: monthly income 5267.54 GBP supports requested loan amount 28300.97 GBP.
+NOTE-0014,APP-0365,APP-0365,credit_analyst,2026-01-15T06:38:00Z,false,Underwriter assessment for APP-0365: account age 73 months provides stable history despite intermediate score 526.
+NOTE-0015,APP-0380,APP-0380,underwriter,2026-01-15T02:54:00Z,false,Referred under policy review rules for APP-0380: verified employer payslip status and consistent debt service obligations.
+NOTE-0016,APP-0393,APP-0393,credit_analyst,2026-01-15T05:27:00Z,false,Referred case for APP-0393: DTI ratio is 0.385887 with credit score 729. Income proof matches declared annual income of 33372.23 GBP.
+NOTE-0017,APP-0434,APP-0434,underwriter,2026-01-15T01:30:00Z,false,Manual underwriting review for APP-0434: 0 delinquency event(s) in 24m window; employment tenure is 65 months.
+NOTE-0018,APP-0470,APP-0470,credit_analyst,2026-01-15T05:28:00Z,false,Borderline affordability check for APP-0470: monthly income 3846.03 GBP supports requested loan amount 10148.67 GBP.
+NOTE-0019,APP-0526,APP-0526,underwriter,2026-01-15T03:40:00Z,false,Underwriter assessment for APP-0526: account age 155 months provides stable history despite intermediate score 623.
+NOTE-0020,APP-0566,APP-0566,credit_analyst,2026-01-15T07:33:00Z,false,Referred under policy review rules for APP-0566: verified employer payslip status and consistent debt service obligations.
+NOTE-0021,APP-0609,APP-0609,underwriter,2026-01-15T09:38:00Z,false,Referred case for APP-0609: DTI ratio is 0.180402 with credit score 606. Income proof matches declared annual income of 52458.18 GBP.
+NOTE-0022,APP-0620,APP-0620,credit_analyst,2026-01-15T03:08:00Z,false,Manual underwriting review for APP-0620: 0 delinquency event(s) in 24m window; employment tenure is 45 months.
+NOTE-0023,APP-0633,APP-0633,underwriter,2026-01-15T08:36:00Z,false,Borderline affordability check for APP-0633: monthly income 2068.50 GBP supports requested loan amount 7031.55 GBP.
+NOTE-0024,APP-0685,APP-0685,credit_analyst,2026-01-15T10:17:00Z,false,Underwriter assessment for APP-0685: account age 109 months provides stable history despite intermediate score 626.
+NOTE-0025,APP-0706,APP-0706,underwriter,2026-01-15T08:09:00Z,false,Referred under policy review rules for APP-0706: verified employer payslip status and consistent debt service obligations.
+NOTE-0026,APP-0727,APP-0727,credit_analyst,2026-01-15T10:01:00Z,false,Referred case for APP-0727: DTI ratio is 0.353983 with credit score 489. Income proof matches declared annual income of 42386.38 GBP.
+NOTE-0027,APP-0829,APP-0829,underwriter,2026-01-15T09:35:00Z,false,Manual underwriting review for APP-0829: 0 delinquency event(s) in 24m window; employment tenure is 197 months.
+NOTE-0028,APP-0889,APP-0889,credit_analyst,2026-01-15T03:40:00Z,true,Borderline affordability check for APP-0889: monthly income 4179.10 GBP supports requested loan amount 21203.59 GBP. Employer payroll verified against sort code 20-45-19 account 83920144; HR contact (020) 7946 0921.
+NOTE-0029,APP-0894,APP-0894,underwriter,2026-01-15T09:48:00Z,false,Underwriter assessment for APP-0894: account age 106 months provides stable history despite intermediate score 582.
+NOTE-0030,APP-0916,APP-0916,credit_analyst,2026-01-15T07:58:00Z,false,Referred under policy review rules for APP-0916: verified employer payslip status and consistent debt service obligations.
+NOTE-0031,APP-0942,APP-0942,underwriter,2026-01-15T09:24:00Z,false,Referred case for APP-0942: DTI ratio is 0.110034 with credit score 601. Income proof matches declared annual income of 26415.68 GBP.
+NOTE-0032,APP-0954,APP-0954,credit_analyst,2026-01-15T05:17:00Z,false,Manual underwriting review for APP-0954: 0 delinquency event(s) in 24m window; employment tenure is 170 months.
+NOTE-0033,APP-1026,APP-1026,underwriter,2026-01-15T02:05:00Z,false,Borderline affordability check for APP-1026: monthly income 1593.83 GBP supports requested loan amount 7062.08 GBP.
+NOTE-0034,APP-1039,APP-1039,credit_analyst,2026-01-15T01:43:00Z,true,Underwriter assessment for APP-1039: account age 121 months provides stable history despite intermediate score 544. Direct debit mandate active on IBAN GB29NWBK60161331926819; applicant mobile 07700 900456.
+NOTE-0035,APP-1133,APP-1133,underwriter,2026-01-15T08:08:00Z,false,Referred under policy review rules for APP-1133: verified employer payslip status and consistent debt service obligations.
+NOTE-0036,APP-1166,APP-1166,credit_analyst,2026-01-15T04:06:00Z,true,Referred case for APP-1166: DTI ratio is 0.221608 with credit score 583. Income proof matches declared annual income of 121978.51 GBP. Secondary savings held in 5512-9034-2218; verified via telephone 020-7946-0192.
+NOTE-0037,APP-1171,APP-1171,underwriter,2026-01-15T11:02:00Z,false,Manual underwriting review for APP-1171: 0 delinquency event(s) in 24m window; employment tenure is 99 months.
+NOTE-0038,APP-1190,APP-1190,credit_analyst,2026-01-15T10:23:00Z,false,Borderline affordability check for APP-1190: monthly income 4816.98 GBP supports requested loan amount 47691.24 GBP.
+NOTE-0039,APP-1225,APP-1225,underwriter,2026-01-15T09:41:00Z,false,Underwriter assessment for APP-1225: account age 32 months provides stable history despite intermediate score 428.
+NOTE-0040,APP-1246,APP-1246,credit_analyst,2026-01-15T07:36:00Z,true,Referred under policy review rules for APP-1246: verified employer payslip status and consistent debt service obligations. Disputed utility delinquency linked to old account 9182736450; applicant reachable at +44 7700 900789.
+NOTE-0041,APP-1258,APP-1258,underwriter,2026-01-15T05:18:00Z,false,Referred case for APP-1258: DTI ratio is 0.302505 with credit score 460. Income proof matches declared annual income of 93709.77 GBP.
+NOTE-0042,APP-1263,APP-1263,credit_analyst,2026-01-15T01:03:00Z,true,Manual underwriting review for APP-1263: 0 delinquency event(s) in 24m window; employment tenure is 75 months. Rent standing order from account 3301-7742-9910; landlord reference phone (0161) 496 0321.
+NOTE-0043,APP-1268,APP-1268,underwriter,2026-01-15T01:03:00Z,false,Borderline affordability check for APP-1268: monthly income 3992.76 GBP supports requested loan amount 13522.78 GBP.
+NOTE-0044,APP-1314,APP-1314,credit_analyst,2026-01-15T04:06:00Z,false,Underwriter assessment for APP-1314: account age 46 months provides stable history despite intermediate score 498.
+NOTE-0045,APP-1322,APP-1322,underwriter,2026-01-15T09:35:00Z,false,Referred under policy review rules for APP-1322: verified employer payslip status and consistent debt service obligations.
+NOTE-0046,APP-1373,APP-1373,credit_analyst,2026-01-15T01:13:00Z,true,Referred case for APP-1373: DTI ratio is 0.115027 with credit score 612. Income proof matches declared annual income of 21052.41 GBP. Bonus payment cleared in account 1029384756; payroll desk phone 0113-496-0844.
+NOTE-0047,APP-1376,APP-1376,underwriter,2026-01-15T11:25:00Z,false,Manual underwriting review for APP-1376: 0 delinquency event(s) in 24m window; employment tenure is 72 months.
+NOTE-0048,APP-1389,APP-1389,credit_analyst,2026-01-15T05:37:00Z,true,Borderline affordability check for APP-1389: monthly income 6478.62 GBP supports requested loan amount 28158.28 GBP. Existing car finance paid from IBAN GB82WEST12345698765432; confirmed on +44 20 7946 0555.
+NOTE-0049,APP-1393,APP-1393,underwriter,2026-01-15T07:30:00Z,false,Underwriter assessment for APP-1393: account age 264 months provides stable history despite intermediate score 618.
+NOTE-0050,APP-1407,APP-1407,credit_analyst,2026-01-15T08:54:00Z,false,Referred under policy review rules for APP-1407: verified employer payslip status and consistent debt service obligations.
+NOTE-0051,APP-1409,APP-1409,underwriter,2026-01-15T08:40:00Z,false,Referred case for APP-1409: DTI ratio is 0.224945 with credit score 526. Income proof matches declared annual income of 15908.36 GBP.
+NOTE-0052,APP-1434,APP-1434,credit_analyst,2026-01-15T05:53:00Z,false,Manual underwriting review for APP-1434: 0 delinquency event(s) in 24m window; employment tenure is 0 months.
+NOTE-0053,APP-1610,APP-1610,underwriter,2026-01-15T11:36:00Z,false,Borderline affordability check for APP-1610: monthly income 5413.39 GBP supports requested loan amount 15742.65 GBP.
+NOTE-0054,APP-1682,APP-1682,credit_analyst,2026-01-15T01:43:00Z,false,Underwriter assessment for APP-1682: account age 91 months provides stable history despite intermediate score 522.
+NOTE-0055,APP-1707,APP-1707,underwriter,2026-01-15T06:51:00Z,false,Referred under policy review rules for APP-1707: verified employer payslip status and consistent debt service obligations.
+NOTE-0056,APP-1813,APP-1813,credit_analyst,2026-01-15T04:44:00Z,false,Referred case for APP-1813: DTI ratio is 0.137555 with credit score 635. Income proof matches declared annual income of 130707.36 GBP.
+NOTE-0057,APP-1832,APP-1832,underwriter,2026-01-15T04:01:00Z,false,Manual underwriting review for APP-1832: 0 delinquency event(s) in 24m window; employment tenure is 148 months.
+NOTE-0058,APP-1919,APP-1919,credit_analyst,2026-01-15T03:11:00Z,true,Borderline affordability check for APP-1919: monthly income 1598.97 GBP supports requested loan amount 8558.68 GBP. Overdraft buffer maintained on account 6621-4409-1182; applicant daytime phone 07700-900-311.
+NOTE-0059,APP-1940,APP-1940,underwriter,2026-01-15T07:16:00Z,true,Underwriter assessment for APP-1940: account age 216 months provides stable history despite intermediate score 643. Settlement statement provided for card 4532 0151 1283 0366; underwriter callback 555-234-5678.
+NOTE-0060,APP-1972,APP-1972,credit_analyst,2026-01-15T02:13:00Z,false,Referred under policy review rules for APP-1972: verified employer payslip status and consistent debt service obligations.

@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-1331",
+  "application_id": "APP-1331",
+  "document_id": "PAYSLIP-APP-1331",
+  "employer": "Solent Maritime Operations",
+  "currency": "GBP",
+  "monthly_income": 4277.52,
+  "income_annual": 51330.19,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-14T16:03:00Z"
+}

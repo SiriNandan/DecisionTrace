@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-0803",
+  "application_id": "APP-0803",
+  "document_id": "PAYSLIP-APP-0803",
+  "employer": "Wessex Financial Administration",
+  "currency": "GBP",
+  "monthly_income": 5609.08,
+  "income_annual": 67309.01,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-15T07:23:00Z"
+}

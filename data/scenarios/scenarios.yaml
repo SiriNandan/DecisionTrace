@@ -1,0 +1,321 @@
+# SYNTHETIC DATA - FOR DEMONSTRATION.
+scenarios:
+  - name: clear_decline
+    description: "DTI far above limit (0.65 > 0.40 under LP-2026-v1)"
+    applicant_id: "APP-0011"
+    application_id: "LOAN-SCEN-0001"
+    decision_date: "2026-02-10T10:00:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 36000.00
+      monthly_income: 3000.00
+      existing_debt_service: 1950.00
+      dti_ratio: 0.65
+      credit_score: 680
+      delinquencies_24m: 0
+      account_age_months: 48
+      employment_months: 36
+      requested_amount: 12000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "DECLINE"
+    expected_policy_version: "LP-2026-v1"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+    expected_status: "verified"
+    post_seed_mutation:
+      annual_income: 108000.00
+      monthly_income: 9000.00
+      existing_debt_service: 1620.00
+      dti_ratio: 0.18
+
+  - name: clear_approve
+    description: "Strong affordability and credit profile meeting all LP-2026-v1 criteria"
+    applicant_id: "APP-0012"
+    application_id: "LOAN-SCEN-0002"
+    decision_date: "2026-02-12T11:30:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 72000.00
+      monthly_income: 6000.00
+      existing_debt_service: 1200.00
+      dti_ratio: 0.20
+      credit_score: 780
+      delinquencies_24m: 0
+      account_age_months: 84
+      employment_months: 60
+      requested_amount: 15000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "APPROVE"
+    expected_policy_version: "LP-2026-v1"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+      - "3.3 Minimum credit score"
+      - "4.1 Required documents"
+    expected_status: "verified"
+    post_seed_mutation:
+      annual_income: 24000.00
+      monthly_income: 2000.00
+      existing_debt_service: 1500.00
+      dti_ratio: 0.75
+
+  - name: boundary_dti_old_policy
+    description: "DTI 0.43 on 2025-05-15 -> approved under LP-2025-v1 (limit 0.45)"
+    applicant_id: "APP-0013"
+    application_id: "LOAN-SCEN-0003"
+    decision_date: "2025-05-15T14:00:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 60000.00
+      monthly_income: 5000.00
+      existing_debt_service: 2150.00
+      dti_ratio: 0.43
+      credit_score: 710
+      delinquencies_24m: 0
+      account_age_months: 60
+      employment_months: 48
+      requested_amount: 10000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "APPROVE"
+    expected_policy_version: "LP-2025-v1"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+      - "3.3 Minimum credit score"
+      - "4.1 Required documents"
+    expected_status: "verified"
+    post_seed_mutation:
+      annual_income: 96000.00
+      monthly_income: 8000.00
+      existing_debt_service: 2000.00
+      dti_ratio: 0.25
+
+  - name: boundary_dti_new_policy
+    description: "Same applicant data (DTI 0.43) on 2025-09-15 -> declined under LP-2025-v2 (limit 0.40)"
+    applicant_id: "APP-0013"
+    application_id: "LOAN-SCEN-0004"
+    decision_date: "2025-09-15T14:00:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 60000.00
+      monthly_income: 5000.00
+      existing_debt_service: 2150.00
+      dti_ratio: 0.43
+      credit_score: 710
+      delinquencies_24m: 0
+      account_age_months: 60
+      employment_months: 48
+      requested_amount: 10000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "DECLINE"
+    expected_policy_version: "LP-2025-v2"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+    expected_status: "verified"
+    post_seed_mutation:
+      annual_income: 96000.00
+      monthly_income: 8000.00
+      existing_debt_service: 2000.00
+      dti_ratio: 0.25
+
+  - name: missing_payslip_referral
+    description: "Missing income proof document routes application to REFER"
+    applicant_id: "APP-0015"
+    application_id: "LOAN-SCEN-0005"
+    decision_date: "2025-11-20T09:15:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 54000.00
+      monthly_income: 4500.00
+      existing_debt_service: 1350.00
+      dti_ratio: 0.30
+      credit_score: 705
+      delinquencies_24m: 0
+      account_age_months: 54
+      employment_months: 42
+      requested_amount: 9000.00
+      currency: "GBP"
+      payslip_status: "missing"
+      address_proof_status: "received"
+    expected_outcome: "REFER"
+    expected_policy_version: "LP-2025-v2"
+    expected_cited_sections:
+      - "4.1 Required documents"
+      - "5.1 Manual review"
+    expected_status: "verified"
+    post_seed_mutation:
+      annual_income: 84000.00
+      monthly_income: 7000.00
+      existing_debt_service: 1400.00
+      dti_ratio: 0.20
+
+  - name: manual_review_rule_2026
+    description: "2026 manual review rule triggered by delinquencies_24m >= 2"
+    applicant_id: "APP-0016"
+    application_id: "LOAN-SCEN-0006"
+    decision_date: "2026-01-25T16:45:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 66000.00
+      monthly_income: 5500.00
+      existing_debt_service: 1650.00
+      dti_ratio: 0.30
+      credit_score: 665
+      delinquencies_24m: 2
+      account_age_months: 72
+      employment_months: 50
+      requested_amount: 11000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "REFER"
+    expected_policy_version: "LP-2026-v1"
+    expected_cited_sections:
+      - "5.1 Manual review"
+    expected_status: "verified"
+    post_seed_mutation:
+      annual_income: 45000.00
+      monthly_income: 3750.00
+      existing_debt_service: 2250.00
+      dti_ratio: 0.60
+
+  - name: override_case
+    description: "Initial DECLINE overridden to APPROVE with a 20+ character reason in overrides table"
+    applicant_id: "APP-0017"
+    application_id: "LOAN-SCEN-0007"
+    decision_date: "2026-02-01T12:00:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 48000.00
+      monthly_income: 4000.00
+      existing_debt_service: 1720.00
+      dti_ratio: 0.43
+      credit_score: 720
+      delinquencies_24m: 0
+      account_age_months: 64
+      employment_months: 48
+      requested_amount: 8000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_initial_outcome: "DECLINE"
+    expected_outcome: "APPROVE"
+    expected_policy_version: "LP-2026-v1"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+      - "5.1 Manual review"
+    override:
+      new_outcome: "APPROVE"
+      actor_role: "senior_underwriter"
+      reason: "Verified full settlement of existing vehicle loan prior to drawdown, reducing effective DTI to 0.28."
+    expected_status: "verified"
+    post_seed_mutation:
+      annual_income: 78000.00
+      monthly_income: 6500.00
+      existing_debt_service: 1300.00
+      dti_ratio: 0.20
+
+  - name: tampered_payload
+    description: "Test-only scenario where one stored snapshot payload is altered after recording"
+    applicant_id: "APP-0018"
+    application_id: "LOAN-SCEN-0008"
+    decision_date: "2026-02-05T10:30:00Z"
+    test_only: true
+    applicant_params:
+      annual_income: 60000.00
+      monthly_income: 5000.00
+      existing_debt_service: 1500.00
+      dti_ratio: 0.30
+      credit_score: 740
+      delinquencies_24m: 0
+      account_age_months: 60
+      employment_months: 48
+      requested_amount: 10000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "APPROVE"
+    expected_policy_version: "LP-2026-v1"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+      - "3.3 Minimum credit score"
+      - "4.1 Required documents"
+    tamper_action: "alter_payload"
+    expected_status: "tamper_detected"
+    post_seed_mutation:
+      annual_income: 42000.00
+      monthly_income: 3500.00
+      existing_debt_service: 1750.00
+      dti_ratio: 0.50
+
+  - name: deleted_final_row
+    description: "Test-only scenario where the final snapshot row in the hash chain is deleted"
+    applicant_id: "APP-0019"
+    application_id: "LOAN-SCEN-0009"
+    decision_date: "2026-02-06T15:20:00Z"
+    test_only: true
+    applicant_params:
+      annual_income: 42000.00
+      monthly_income: 3500.00
+      existing_debt_service: 1750.00
+      dti_ratio: 0.50
+      credit_score: 610
+      delinquencies_24m: 1
+      account_age_months: 36
+      employment_months: 24
+      requested_amount: 10000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "DECLINE"
+    expected_policy_version: "LP-2026-v1"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+      - "3.3 Minimum credit score"
+    tamper_action: "delete_final_row"
+    expected_status: "tamper_detected"
+    post_seed_mutation:
+      annual_income: 90000.00
+      monthly_income: 7500.00
+      existing_debt_service: 1500.00
+      dti_ratio: 0.20
+
+  - name: erased_evidence
+    description: "Payslip marked erased_by_retention in evidence_status, yielding evidence_unavailable"
+    applicant_id: "APP-0020"
+    application_id: "LOAN-SCEN-0010"
+    decision_date: "2025-04-10T11:00:00Z"
+    test_only: false
+    applicant_params:
+      annual_income: 66000.00
+      monthly_income: 5500.00
+      existing_debt_service: 1375.00
+      dti_ratio: 0.25
+      credit_score: 750
+      delinquencies_24m: 0
+      account_age_months: 72
+      employment_months: 60
+      requested_amount: 12000.00
+      currency: "GBP"
+      payslip_status: "received"
+      address_proof_status: "received"
+    expected_outcome: "APPROVE"
+    expected_policy_version: "LP-2025-v1"
+    expected_cited_sections:
+      - "3.2 Debt-to-income limit"
+      - "3.3 Minimum credit score"
+      - "4.1 Required documents"
+    retention_action: "erased_by_retention"
+    expected_status: "evidence_unavailable"
+    post_seed_mutation:
+      annual_income: 33000.00
+      monthly_income: 2750.00
+      existing_debt_service: 1650.00
+      dti_ratio: 0.60
+

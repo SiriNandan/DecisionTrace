@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-1757",
+  "application_id": "APP-1757",
+  "document_id": "PAYSLIP-APP-1757",
+  "employer": "Mercia Retail Holdings",
+  "currency": "GBP",
+  "monthly_income": 1238.1,
+  "income_annual": 14857.16,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-14T08:37:00Z"
+}

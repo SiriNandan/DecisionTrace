@@ -1,0 +1,156 @@
+# SYNTHETIC DATA - FOR DEMONSTRATION.
+# DecisionTrace Local Testing & Execution Commands (PowerShell)
+# Run all commands from the project root directory:
+# c:\Users\Hp\Desktop\AC275 Siri Nandan Chilamkurthy\Personal Documents\study\geniai\ai_builder
+
+# ==============================================================================
+# 1. START POSTGRESQL (PORT 5433)
+# ==============================================================================
+
+# Option A: Start the pre-initialized local PostgreSQL 18 instance on port 5433
+& "C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe" -D "C:\Users\Hp\.gemini\antigravity\brain\8dd0e6a4-2ffe-4661-a19f-4ca51c5ff24e\scratch\pgdata" -l "C:\Users\Hp\.gemini\antigravity\brain\8dd0e6a4-2ffe-4661-a19f-4ca51c5ff24e\scratch\pg.log" -o "-p 5433" start
+
+# Stop the local PostgreSQL 18 instance (when finished)
+& "C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe" -D "C:\Users\Hp\.gemini\antigravity\brain\8dd0e6a4-2ffe-4661-a19f-4ca51c5ff24e\scratch\pgdata" stop
+
+# Option B: Start PostgreSQL 15 via Docker Compose
+docker compose up -d
+
+# Verify PostgreSQL connectivity viaDocker Compose
+docker compose exec postgres psql -U decisiontrace -d decisiontrace -c "SELECT 1;"
+
+
+# ==============================================================================
+# 2. DATA GENERATION, POLICY LOADING, MODEL TRAINING & SCENARIO SEEDING
+# ==============================================================================
+
+# Generate 2,000 deterministic synthetic applicants, bureau snapshots, and accounts
+.\.venv\Scripts\python.exe -m data.generate_applicants
+
+# Generate payslips, consent events, and analyst notes
+.\.venv\Scripts\python.exe -m data.generate_documents
+
+# Load temporal policies (LP-2025-v1, LP-2025-v2, LP-2026-v1) into PostgreSQL
+.\.venv\Scripts\python.exe -m data.load_policies
+
+# Train LogisticRegression model, register loan_lr_v1, and generate docs/model_card.md
+.\.venv\Scripts\python.exe -m data.train_model
+
+# Seed the 10 canonical scenarios (S1-S10) + 20 baseline decisions (30 total)
+.\.venv\Scripts\python.exe -m data.seed_scenarios
+
+# Seed the synthetic fairness proxy cohort (Group A vs Group B)
+.\.venv\Scripts\python.exe -m data.generate_fairness_scenario
+
+
+# ==============================================================================
+# 3. RUN PYTHON BACKEND TESTS (PYTEST)
+# ==============================================================================
+
+# Run the entire Python test suite
+.\.venv\Scripts\pytest.exe -v
+
+# Run individual test modules:
+# A2: Database schema & app_role append-only permissions
+.\.venv\Scripts\pytest.exe tests/test_migrations.py -v
+
+# A3: Deterministic applicant/bureau/account generation
+.\.venv\Scripts\pytest.exe tests/test_generate_applicants.py -v
+
+# A4: Temporal policies & non-overlapping effective dates
+.\.venv\Scripts\pytest.exe tests/test_policies.py -v
+
+# A5: Supporting documents & PII redaction
+.\.venv\Scripts\pytest.exe tests/test_redaction_and_documents.py -v
+
+# A6: Canonical scenarios (S1-S10)
+.\.venv\Scripts\pytest.exe tests/test_scenarios.py -v
+
+# A7: Fairness proxy disparity detection
+.\.venv\Scripts\pytest.exe tests/test_fairness.py -v
+
+# B1: Model training, registry & 1e-9 predict_proba score match
+.\.venv\Scripts\pytest.exe tests/test_model_scoring.py -v
+
+# B2: Canonical JSON & SHA-256 hash-chain tamper detection
+.\.venv\Scripts\pytest.exe tests/test_integrity.py -v
+
+# B3: Decision API single-transaction execution, rollback & idempotency
+.\.venv\Scripts\pytest.exe tests/test_decision_api.py -v
+
+# B4: Pydantic v2 ReconstructionReport contract validation
+.\.venv\Scripts\pytest.exe tests/test_contract.py -v
+
+# B5: Temporal policy retrieval & TF-IDF section search
+.\.venv\Scripts\pytest.exe tests/test_policy_search.py -v
+
+# B6: Reconstruction agent (fake & Gemini backends, 8 tools, guardrails)
+.\.venv\Scripts\pytest.exe tests/test_recon_agent.py -v
+
+# B7: Append-only human overrides & byte-identical snapshot preservation
+.\.venv\Scripts\pytest.exe tests/test_overrides.py -v
+
+# B9: End-to-end evaluation suite & CSV/Markdown report generation
+.\.venv\Scripts\pytest.exe tests/test_run_eval.py -v
+
+
+# ==============================================================================
+# 4. RUN EVALUATION & FAIRNESS SCRIPTS
+# ==============================================================================
+
+# Run full evaluation suite (writes eval/results.md and eval/human_rating_30_reports.csv)
+.\.venv\Scripts\python.exe -m eval.run_eval
+
+# Run standalone fairness evaluation
+.\.venv\Scripts\python.exe -m eval.fairness
+
+
+# ==============================================================================
+# 5. RUN FRONTEND JEST TESTS (AGAINST LIVE FASTAPI BACKEND)
+# ==============================================================================
+
+# Terminal 1: Start the FastAPI backend on port 8000
+.\.venv\Scripts\uvicorn.exe decision_api.app:app --host 127.0.0.1 --port 8000
+
+# Terminal 2: Run Frontend Jest tests against http://localhost:8000
+npm --prefix frontend test
+
+
+# ==============================================================================
+# 6. RUN INTERACTIVE APPLICATION (BACKEND API + REACT UI)
+# ==============================================================================
+
+# Terminal 1: Start FastAPI server (with fake LLM backend by default)
+.\.venv\Scripts\uvicorn.exe decision_api.app:app --host 127.0.0.1 --port 8000 --reload
+
+# Optional: Start FastAPI server with real Gemini API backend
+$env:LLM_BACKEND="gemini_api"
+$env:GEMINI_API_KEY="your_gemini_api_key_here"
+.\.venv\Scripts\uvicorn.exe decision_api.app:app --host 127.0.0.1 --port 8000 --reload
+
+# Terminal 2: Start Vite React Frontend (opens at http://localhost:5173)
+npm --prefix frontend run dev
+
+
+# ==============================================================================
+# 7. CLI API SMOKE TESTS (POWERSHELL)
+# ==============================================================================
+
+# List decisions
+Invoke-RestMethod -Uri "http://localhost:8000/decisions" | Select-Object -First 3
+
+# Fetch full decision record & snapshots for Scenario S1 (DEC-S001)
+Invoke-RestMethod -Uri "http://localhost:8000/decisions/DEC-S001"
+
+# Verify SHA-256 hash chain for Scenario S1 (DEC-S001)
+Invoke-RestMethod -Uri "http://localhost:8000/decisions/DEC-S001/verify"
+
+# Reconstruct cited explanation for Scenario S4 (DEC-S004 - post-decision bureau drift)
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/reconstruct/DEC-S004"
+
+# Create a new loan decision via POST /decide
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/decide" -ContentType "application/json" -Body '{"applicant_id": "APP-0001", "requested_amount": 12000.0}'
+
+# Record an append-only supervisor override via POST /overrides
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/overrides" -ContentType "application/json" -Body '{"decision_id": "DEC-S002", "new_outcome": "APPROVE", "reason": "Verified updated payslip and manual affordability review passed.", "actor_role": "credit_supervisor"}'
+

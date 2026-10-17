@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-0902",
+  "application_id": "APP-0902",
+  "document_id": "PAYSLIP-APP-0902",
+  "employer": "Arundel Civic Services",
+  "currency": "GBP",
+  "monthly_income": 5670.66,
+  "income_annual": 68047.92,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-13T18:37:00Z"
+}

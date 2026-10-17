@@ -1,0 +1,12 @@
+{"_notice": "SYNTHETIC DATA - FOR DEMONSTRATION.",
+  "applicant_id": "APP-0231",
+  "application_id": "APP-0231",
+  "document_id": "PAYSLIP-APP-0231",
+  "employer": "Albion Healthcare Group",
+  "currency": "GBP",
+  "monthly_income": 7306.6,
+  "income_annual": 87679.21,
+  "status": "received",
+  "source_id": "payslip_verifier_uk_syn_v1",
+  "source_timestamp": "2026-01-15T00:35:00Z"
+}

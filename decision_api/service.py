@@ -85,14 +85,22 @@ def canonical_payload_json(payload: dict[str, Any]) -> str:
     return canonical_json(payload)
 
 
+class PolicyParseError(RuntimeError):
+    """Raised when a stored policy's text does not yield the limits the decision engine needs."""
+
+
 def _extract_policy_rules(row: tuple[Any, ...]) -> EffectivePolicyRules:
     policy_id, policy_family, eff_from, eff_to, text_sha256, body = row
 
     dti_match = re.search(r"dti_ratio`?\)\s+is\s+`?(0\.\d+)`?", body)
-    dti_limit = float(dti_match.group(1)) if dti_match else 0.40
+    if dti_match is None:
+        raise PolicyParseError(f"Policy {policy_id}: could not parse the DTI limit from the policy text.")
+    dti_limit = float(dti_match.group(1))
 
     score_match = re.search(r"automated approval is\s+`?(\d{3})`?", body)
-    min_credit_score = int(score_match.group(1)) if score_match else 640
+    if score_match is None:
+        raise PolicyParseError(f"Policy {policy_id}: could not parse the minimum credit score from the policy text.")
+    min_credit_score = int(score_match.group(1))
 
     required_docs = ["income proof"]
     if "address proof" in body.lower():

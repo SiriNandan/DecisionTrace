@@ -127,3 +127,18 @@ def test_load_policies_into_postgres_and_verify_non_overlapping() -> None:
     for rec in db_records:
         assert rec.text_sha256 == hashlib.sha256(rec.body.encode("utf-8")).hexdigest()
 
+
+
+def test_unparseable_policy_limits_fail_loudly() -> None:
+    from decision_api.service import PolicyParseError, _extract_policy_rules
+
+    row = ("LP-X", "consumer_loan", date(2026, 1, 1), None, "0" * 64, "No numeric limits here.")
+    with pytest.raises(PolicyParseError):
+        _extract_policy_rules(row)
+
+    good_dti_only = (
+        "LP-Y", "consumer_loan", date(2026, 1, 1), None, "0" * 64,
+        "The maximum allowable debt-to-income ratio (`dti_ratio`) is `0.40` (`40%`).",
+    )
+    with pytest.raises(PolicyParseError):
+        _extract_policy_rules(good_dti_only)

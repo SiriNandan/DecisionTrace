@@ -54,8 +54,8 @@ ROLE_SCOPES: dict[str, frozenset[str]] = {
     ),
     # A customer opening their own decision from a link: one decision, nothing else.
     "consumer": frozenset({"decisions:read", "reconstruct", "review:request", "consent:write"}),
-    # The lender's own administrator: manages who has a key and what it can do. Sees who did what, not customers' decisions.
-    "lender_admin": frozenset({"team:manage", "audit:read"}),
+    # The lender's own administrator: manages who has a key and what it can do, sees who did what, and can read decisions and insights (never change them).
+    "lender_admin": frozenset({"team:manage", "audit:read", "decisions:read", "reconstruct"}),
     # Front-line support: opens a decision to help a customer and gives them their link; cannot change anything.
     "lender_support": frozenset({"decisions:read", "reconstruct", "claims:issue", "consent:write"}),
 }

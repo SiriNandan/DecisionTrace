@@ -11,11 +11,12 @@
   html, body { height: 100%; background: #0f1715; }
   body { display: grid; place-items: center; overflow: hidden; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
   /* 16:9 stage; every size below is a percentage of the stage so it scales to any screen */
-  .stage { position: relative; width: min(100vw, 177.78vh); aspect-ratio: 16/9; background: var(--paper); color: var(--ink); overflow: hidden; container-type: size; }
+  .stage { --o: 6.8s; position: relative; width: min(100vw, 177.78vh); aspect-ratio: 16/9; background: var(--paper); color: var(--ink); overflow: hidden; container-type: size; }
   .scene { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; }
-  .go .s1 { animation: scene 4.2s ease both 0s; }
-  .go .s2 { animation: scene 6s ease both 3.9s; }
-  .go .s3 { animation: sceneHold 3.6s ease both 9.6s; }
+  .go .s0 { animation: scene 7.4s ease both 0s; }
+  .go .s1 { animation: scene 4.2s ease both var(--o); }
+  .go .s2 { animation: scene 6s ease both calc(3.9s + var(--o)); }
+  .go .s3 { animation: sceneHold 3.6s ease both calc(9.6s + var(--o)); }
   @keyframes scene { 0% { opacity: 0; transform: scale(.98); } 8% { opacity: 1; transform: none; } 90% { opacity: 1; } 100% { opacity: 0; } }
   @keyframes sceneHold { 0% { opacity: 0; transform: scale(.98); } 12% { opacity: 1; transform: none; } 100% { opacity: 1; } }
   .k { font-size: 1.6cqw; letter-spacing: .18em; text-transform: uppercase; color: var(--brand); font-weight: 700; }
@@ -23,16 +24,24 @@
   .sub { font-size: 2cqw; color: var(--ink2); text-align: center; margin-top: 1.6cqw; }
   .wrap { display: grid; gap: 2.4cqw; justify-items: center; padding: 0 8cqw; }
 
+  /* scene 0: introduction and problem statement */
+  .hi { font-family: Fraunces, Georgia, serif; font-size: 6.4cqw; font-weight: 600; color: var(--brand); opacity: 0; }
+  .who { font-size: 2.6cqw; text-align: center; opacity: 0; } .who b { color: var(--brand); }
+  .ps { display: grid; gap: 1.1cqw; justify-items: center; padding: 2cqw 3cqw; margin-top: 1cqw; background: var(--card); border: .2cqw solid var(--line); border-radius: 2cqw; max-width: 78cqw; opacity: 0; }
+  .ps .k { font-size: 1.35cqw; } .ps strong { font-family: Fraunces, Georgia, serif; font-size: 3.4cqw; line-height: 1.15; text-align: center; }
+  .ps span { font-size: 1.6cqw; color: var(--ink2); text-align: center; line-height: 1.4; }
+  .go .hi { animation: rise .7s ease both .3s; } .go .who { animation: rise .7s ease both 1.4s; } .go .ps { animation: rise .8s ease both 3s; }
+
   /* scene 1: nine declines then an approval */
   .strip { display: flex; gap: .9cqw; }
   .dot { width: 5cqw; height: 5cqw; border-radius: 1cqw; display: grid; place-items: center; font-size: 2.6cqw; font-weight: 800; opacity: 0; transform: scale(.4); }
   .dot.d { background: var(--badbg); color: var(--bad); } .dot.a { background: var(--goodbg); color: var(--good); }
-  .go .dot { animation: pop .35s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(var(--i) * .17s + .5s); }
-  .go .dot.a { animation: pop .5s cubic-bezier(.2,1.6,.4,1) both 2.3s, glow 1.1s ease-in-out 2.9s 2; }
+  .go .dot { animation: pop .35s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(var(--i) * .17s + .5s + var(--o)); }
+  .go .dot.a { animation: pop .5s cubic-bezier(.2,1.6,.4,1) both calc(2.3s + var(--o)), glow 1.1s ease-in-out calc(2.9s + var(--o)) 2; }
   @keyframes pop { to { opacity: 1; transform: none; } }
   @keyframes glow { 50% { box-shadow: 0 0 0 1.2cqw rgba(28,122,75,.22); } }
   .q { font-family: Fraunces, Georgia, serif; font-size: 3.2cqw; font-weight: 600; text-align: center; opacity: 0; }
-  .go .q { animation: rise .6s ease both 2.7s; }
+  .go .q { animation: rise .6s ease both calc(2.7s + var(--o)); }
   @keyframes rise { from { opacity: 0; transform: translateY(1cqw); } to { opacity: 1; transform: none; } }
 
   /* scene 2: four perspectives around one record */
@@ -40,37 +49,49 @@
   .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 21cqw; padding: 2cqw 1cqw; background: var(--brand); color: #fff;
             border-radius: 2cqw; text-align: center; font-weight: 700; font-size: 2.1cqw; box-shadow: 0 1cqw 3cqw -1cqw rgba(15,92,77,.5); opacity: 0; }
   .center small { display: block; font-weight: 500; font-size: 1.3cqw; opacity: .85; margin-top: .5cqw; }
-  .go .center { animation: rise .6s ease both 4.1s; }
+  .go .center { animation: rise .6s ease both calc(4.1s + var(--o)); }
   .node { position: absolute; width: 27cqw; padding: 1.5cqw 1.8cqw; background: var(--card); border: .18cqw solid var(--line); border-radius: 1.6cqw; opacity: 0; }
   .node b { display: block; font-size: 2cqw; color: var(--brand); }
   .node span { display: block; font-size: 1.55cqw; color: var(--ink2); margin-top: .5cqw; line-height: 1.35; }
   .node em { display: block; font-style: normal; font-size: 1.35cqw; font-weight: 700; margin-top: .8cqw; color: var(--ink); }
   .n1 { left: 5cqw; top: 8cqw; } .n2 { right: 5cqw; top: 8cqw; } .n3 { left: 5cqw; bottom: 8cqw; } .n4 { right: 5cqw; bottom: 8cqw; }
-  .go .n1 { animation: rise .6s ease both 4.8s; } .go .n2 { animation: rise .6s ease both 5.6s; }
-  .go .n3 { animation: rise .6s ease both 6.4s; } .go .n4 { animation: rise .6s ease both 7.2s; }
+  .go .n1 { animation: rise .6s ease both calc(4.8s + var(--o)); } .go .n2 { animation: rise .6s ease both calc(5.6s + var(--o)); }
+  .go .n3 { animation: rise .6s ease both calc(6.4s + var(--o)); } .go .n4 { animation: rise .6s ease both calc(7.2s + var(--o)); }
   .n4 { border-color: var(--review); } .n4 b { color: var(--review); }
   svg.lines { position: absolute; inset: 0; width: 100%; height: 100%; }
   .ln { stroke: var(--brand); stroke-width: .25; stroke-dasharray: 60; stroke-dashoffset: 60; opacity: .5; fill: none; }
-  .go .l1 { animation: draw .7s ease both 4.8s; } .go .l2 { animation: draw .7s ease both 5.6s; }
-  .go .l3 { animation: draw .7s ease both 6.4s; } .go .l4 { animation: draw .7s ease both 7.2s; }
+  .go .l1 { animation: draw .7s ease both calc(4.8s + var(--o)); } .go .l2 { animation: draw .7s ease both calc(5.6s + var(--o)); }
+  .go .l3 { animation: draw .7s ease both calc(6.4s + var(--o)); } .go .l4 { animation: draw .7s ease both calc(7.2s + var(--o)); }
   @keyframes draw { to { stroke-dashoffset: 0; } }
 
   /* scene 3: sealed chain and the one-line promise */
   .chain { display: flex; align-items: center; gap: .6cqw; }
   .blk { width: 8cqw; height: 5cqw; border-radius: 1cqw; background: var(--brandsoft); border: .2cqw solid var(--brand); display: grid; place-items: center; font-size: 1.3cqw; font-weight: 700; color: var(--brand); opacity: 0; }
   .lk { width: 2.4cqw; height: .25cqw; background: var(--brand); opacity: 0; }
-  .go .blk, .go .lk { animation: rise .4s ease both; animation-delay: calc(var(--i) * .22s + 10s); }
+  .go .blk, .go .lk { animation: rise .4s ease both; animation-delay: calc(var(--i) * .22s + 10s + var(--o)); }
   .tags { display: flex; gap: 1.4cqw; flex-wrap: wrap; justify-content: center; }
   .tag { font-size: 1.8cqw; font-weight: 700; padding: .7cqw 1.8cqw; border-radius: 99cqw; background: var(--card); border: .18cqw solid var(--line); opacity: 0; }
-  .go .tag { animation: rise .5s ease both; animation-delay: calc(var(--i) * .35s + 11.4s); }
+  .go .tag { animation: rise .5s ease both; animation-delay: calc(var(--i) * .35s + 11.4s + var(--o)); }
   .brandline { font-family: Fraunces, Georgia, serif; font-size: 5.2cqw; font-weight: 600; color: var(--brand); opacity: 0; }
-  .go .brandline { animation: rise .7s ease both 10.2s; }
+  .go .brandline { animation: rise .7s ease both calc(10.2s + var(--o)); }
   .foot { position: absolute; bottom: 1.6cqw; width: 100%; text-align: center; font-size: 1.2cqw; color: var(--ink2); }
   .hint { position: fixed; right: 12px; bottom: 8px; color: #8aa; font: 12px system-ui; }
 </style>
 </head>
 <body>
 <div class="stage go" id="stage">
+
+  <section class="scene s0" aria-label="Introduction and problem statement">
+    <div class="wrap">
+      <p class="hi">Hi everyone</p>
+      <p class="who">This is <b>Team Nexa</b></p>
+      <div class="ps">
+        <p class="k">Problem statement</p>
+        <strong>BFSI: Intelligent Risk, Fraud &amp; Financial Experiences</strong>
+        <span>An AI-powered solution that helps detect fraud and risk, automates complex processes and improves how customers experience financial services.</span>
+      </div>
+    </div>
+  </section>
 
   <section class="scene s1" aria-label="The problem">
     <div class="wrap">
@@ -118,7 +139,7 @@
 <p class="hint">Click or press R to replay · F for full screen</p>
 <script>
   const stage = document.getElementById("stage");
-  const SPEED = 0.78;  // 1 = original pace; lower is slower (0.78 plays the intro in about 17 seconds)
+  const SPEED = 0.78;  // 1 = original pace; lower is slower (0.78 plays the whole intro, including the introduction, in about 26 seconds)
   const slow = () => requestAnimationFrame(() => document.getAnimations().forEach((a) => a.updatePlaybackRate(SPEED)));
   const replay = () => { stage.classList.remove("go"); void stage.offsetWidth; stage.classList.add("go"); slow(); };
   slow();

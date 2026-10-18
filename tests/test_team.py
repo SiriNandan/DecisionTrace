@@ -125,7 +125,8 @@ def test_one_role_loads_data_and_the_others_read_or_review(client: TestClient, l
     assert client.get("/v1/signals", headers=h(t["keys"]["lender_support"])).status_code == 403
     assert client.get("/v1/access-log", headers=h(t["keys"]["lender_support"])).status_code == 403
 
-    assert client.get("/decisions", headers=h(t["keys"]["lender_admin"])).status_code == 403  # the administrator manages people, not customers' data
+    assert client.get("/decisions", headers=h(t["keys"]["lender_admin"])).status_code == 200  # the administrator can read decisions...
+    assert client.post("/overrides", json={"decision_id": dec, "new_outcome": "APPROVE", "reason": "Verified supplemental savings statement.", "actor_role": "admin"}, headers=h(t["keys"]["lender_admin"])).status_code == 403  # ...but never change them
     assert client.get("/v1/access-log", headers=h(t["keys"]["lender_admin"])).status_code == 200
 
 

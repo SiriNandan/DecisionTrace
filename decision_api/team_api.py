@@ -18,7 +18,7 @@ router = APIRouter()
 MAX_ACTIVE_KEYS = 200
 
 ROLE_INFO: dict[str, tuple[str, str]] = {
-    "lender_admin": ("Team administrator", "Adds and removes people and sees who looked at what. Does not see customers' decisions."),
+    "lender_admin": ("Team administrator", "Adds and removes people, sees who looked at what, and can read decisions and insights. Cannot change anything."),
     "lender_ingest": ("Data officer", "The only role that loads decision data. Cannot read decisions."),
     "lender_analyst": ("Analyst", "Reads decisions, records reviews and overrides, signs off data matching, gives customers their link."),
     "lender_support": ("Support", "Opens a decision to help a customer and gives them their link. Cannot change anything."),

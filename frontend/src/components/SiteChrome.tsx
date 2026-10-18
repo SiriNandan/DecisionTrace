@@ -6,12 +6,18 @@ import { ROLE_LABEL } from "../pages/SignInPage";
 
 const NAV: Array<[Page, string]> = [["home", "Decisions"], ["insights", "Insights"], ["about", "How it works"], ["help", "Help"]];
 // A customer opening their own link sees only their decision and the help pages.
-const staffNav = (scopes: string[]): Array<[Page, string]> => [
-  ...NAV.slice(0, 2),
-  ...(scopes.includes("signals:read") ? ([["customers", "Customers"]] as Array<[Page, string]>) : []),
-  ...(scopes.includes("mappings:read") ? ([["connect", "Connect your data"]] as Array<[Page, string]>) : []),
-  ...NAV.slice(2),
-];
+// Each signed-in person sees only the pages their role can use (the same rule drives the footer).
+const staffNav = (scopes: string[]): Array<[Page, string]> => {
+  const has = (s: string) => scopes.includes(s);
+  return [
+    ...(has("decisions:read") ? ([["home", "Decisions"], ["insights", "Insights"]] as Array<[Page, string]>) : []),
+    ...(has("signals:read") ? ([["customers", "Customers"]] as Array<[Page, string]>) : []),
+    ...(has("mappings:read") ? ([["connect", "Connect your data"]] as Array<[Page, string]>) : []),
+    ...(has("ingest:write") ? ([["ingest", "How to ingest"]] as Array<[Page, string]>) : []),
+    ...(has("team:manage") ? ([["team", "Your team"]] as Array<[Page, string]>) : []),
+    ["about", "How it works"], ["help", "Help"],
+  ];
+};
 
 const CUSTOMER_NAV: Array<[Page, string]> = [["about", "How it works"], ["help", "Help"]];
 
@@ -89,7 +95,7 @@ export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) =
 );
 
 const LENDER_LINKS: Array<[Page, string, string[]]> = [
-  ["customers", "Customers", ["signals:read"]], ["connect", "Connect your data", ["mappings:read"]], ["team", "Your team", ["team:manage"]], ["quality", "Data checks", ["quality:read"]],
+  ["customers", "Customers", ["signals:read"]], ["connect", "Connect your data", ["mappings:read"]], ["ingest", "How to ingest", ["ingest:write"]], ["team", "Your team", ["team:manage"]], ["quality", "Data checks", ["quality:read"]],
   ["signals", "Risk signals", ["signals:read"]], ["seals", "Record seals", ["seals:read"]],
 ];
 
@@ -100,7 +106,7 @@ export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; custome
         <p className="cl-footer-brand">DecisionTrace</p>
         <p className="cl-muted">Loan decisions, explained. It shows how each decision was reached. It never makes or changes decisions on its own.</p>
       </div>
-      {!customer && (
+      {!customer && (!staff || !scopes || scopes.includes("decisions:read")) && (
         <nav aria-label="Explore"><h2 className="cl-footer-h">Explore</h2>
           <Link to={{ page: "home" }}>Decisions</Link><Link to={{ page: "insights" }}>Insights</Link></nav>
       )}

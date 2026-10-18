@@ -16,7 +16,7 @@ const TASKS: Task[] = [
 
 const WHY: Record<string, string> = {
   lender_ingest: "You load decision data. You can’t read the decisions themselves, which keeps loading and reviewing separate.",
-  lender_admin: "You look after who has access. You can’t read customers’ decisions.",
+  lender_admin: "You look after who has access, and you can read decisions and insights. You can’t change a decision.",
 };
 
 /** What this person can do, for a sign-in that has no decision list to land on. */

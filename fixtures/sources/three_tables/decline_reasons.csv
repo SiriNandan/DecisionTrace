@@ -1,0 +1,7 @@
+Loan Ref,Reason Code,Reason Text
+LN-2003,R01,Credit score below our minimum
+LN-2003,R07,Recent missed payments on other credit
+LN-2005,R04,Unable to verify self-employed income
+LN-2007,R01,Credit score below our minimum
+LN-2007,R07,Recent missed payments on other credit
+LN-2008,R02,Requested amount too high for stated income

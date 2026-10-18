@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from backend.anchoring import append_anchor
 from backend.auth import Principal, log_access, require_scope, tenant_connection
+from backend.data_sources import DataSource, describe, load_from_source
 from backend.ingest import record_decision
 from backend.mapping import (
     MappingSpec,
@@ -33,6 +34,11 @@ class SourceData(BaseModel):
     format: Literal["csv", "json"]
     content: str | None = Field(default=None, description="The file's text (CSV)")
     rows: list[dict[str, Any]] | None = Field(default=None, max_length=5000, description="Records (JSON)")
+    source: DataSource | None = Field(
+        default=None,
+        discriminator="type",
+        description="Fetch the data from a URL, a Google Cloud Storage object or a read-only SQL query instead of sending it here",
+    )
 
 
 class ProposeRequest(SourceData):
@@ -99,6 +105,11 @@ def _insert_version(conn: psycopg.Connection[Any], principal: Principal, name: s
 
 def _rows(src: SourceData) -> tuple[list[str], list[dict[str, Any]]]:
     try:
+        if src.source is not None:
+            if src.content is not None or src.rows is not None:
+                raise ValueError("Send either the data itself or a `source` to fetch it from, not both.")
+            content, rows = load_from_source(src.source, src.format)
+            return load_rows("json" if rows is not None else src.format, content, rows)
         return load_rows(src.format, src.content, src.rows)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -251,7 +262,8 @@ def import_file(req: ImportRequest, principal: Principal = Depends(require_scope
         quality = None
         signals = None
         if not req.dry_run:
-            log_access(conn, principal, "import", "mapping", f"{m['mapping_id']} rows={len(rows)}")
+            where = f" source={describe(req.source)}" if req.source is not None else ""
+            log_access(conn, principal, "import", "mapping", f"{m['mapping_id']} rows={len(rows)}{where}")
             if new_records:  # check what was just saved, so problems surface straight away
                 from backend.quality import scan
 

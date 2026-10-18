@@ -74,7 +74,7 @@ Limits of this demo, stated plainly:
 - **Local key provider.** Lender evidence keys are derived from one master secret on the VM (`LocalKeyProvider`); there is no hardware or cloud key service.
 - **No SSO or MFA.** Access is by API key or customer link.
 - **In-process rate limiting and cache.** They are per process and reset on restart; they do not work across several instances.
-- **Anchors are only protected from casual edits.** The anchor log and signed seals are copied to a bucket with a retention policy, but someone with admin rights on the VM or project could still change what is written before it is copied.
+- **Anchors are only protected from casual edits.** The anchor log and signed seals are copied every 5 minutes to a bucket with a short (1-day) retention policy as timestamped files, but someone with admin rights on the VM or project could still change what is written before it is copied.
 - **Gemini is disabled.** `LLM_BACKEND=fake`; summaries come from the scripted backend.
 - **Large data sources load a page (500 rows) at a time.** The source is fetched again for each page, so a database query that changes between pages can give a mixed result; use a fixed export for big loads.
 - **Data sources are off until allowed.** Importing from a URL, a storage bucket or a database needs the operator to list the hosts or buckets in `DT_SOURCE_URL_ALLOWED_HOSTS`, `DT_SOURCE_GCS_ALLOWED_BUCKETS` or `DT_SOURCE_SQL_ALLOWED_HOSTS`.

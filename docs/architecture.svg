@@ -156,7 +156,7 @@
 <text x="664" y="1013" font-size="12.5" fill="#334155">Taken after the demo scenarios are loaded, so it can be restored</text>
 <rect x="1150" y="968" width="490" height="64" rx="10" fill="#fff" stroke="#0f766e" stroke-width="1.5"/>
 <text x="1164" y="992" font-size="14.5" font-weight="700" fill="#0f172a">Locked bucket (retention policy)</text>
-<text x="1164" y="1013" font-size="12.5" fill="#334155">Anchor log and seal copies, sent on a timer by a create-only service account</text>
+<text x="1164" y="1013" font-size="12.5" fill="#334155">Anchor log and seal copies, sent on a timer by the VM's account, which can only create objects there</text>
 <path d="M865 950 L865 959 L1395 959 L1395 966" fill="none" stroke="#0f766e" stroke-width="2" marker-end="url(#ag)"/>
 <text x="1070" y="1000" font-size="12.5" fill="#0f766e" font-weight="600" text-anchor="middle"></text>
 <g transform="translate(0,280)">

@@ -31,7 +31,7 @@ export const WelcomeDialog: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   return (
     <div className="cl-modal-wrap" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="cl-modal" role="dialog" aria-modal="true" aria-labelledby="tour-h" ref={ref} data-testid="welcome-dialog">
-        <p className="cl-eyebrow">Welcome to Clearly · {i + 1} of {STEPS.length}</p>
+        <p className="cl-eyebrow">Welcome to DecisionTrace · {i + 1} of {STEPS.length}</p>
         <div className="cl-modal-icon" aria-hidden="true">{s.icon}</div>
         <h2 id="tour-h" className="cl-h2">{s.title}</h2>
         <p className="cl-lede" style={{ fontSize: 17 }}>{s.body}</p>

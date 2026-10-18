@@ -10,16 +10,16 @@ const STEPS = [
 const PRINCIPLES = [
   ["Evidence first", "Explanations come from what was recorded at the time, not from what we’d guess today."],
   ["Honest about gaps", "If evidence was removed under retention rules, we say so and show how much is missing."],
-  ["People stay in charge", "Clearly never makes or changes a decision. A person can ask for a review, and the original is never overwritten."],
+  ["People stay in charge", "DecisionTrace never makes or changes a decision. A person can ask for a review, and the original is never overwritten."],
   ["Plain language", "No jargon where you don’t need it. Technical details are there for auditors, one click away."],
 ];
 
 export const AboutPage: React.FC = () => (
   <div className="cl-page">
-    <p className="cl-eyebrow">About Clearly</p>
+    <p className="cl-eyebrow">About DecisionTrace</p>
     <h1 className="cl-page-title" tabIndex={-1}>Decisions you can understand, and check.</h1>
     <p className="cl-page-lede">
-      A loan decision can change someone’s plans. Clearly exists so that anyone affected can see
+      A loan decision can change someone’s plans. DecisionTrace exists so that anyone affected can see
       what was decided, why, and what evidence sits behind it, without needing to be an expert.
     </p>
 

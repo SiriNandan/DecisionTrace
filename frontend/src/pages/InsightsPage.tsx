@@ -47,7 +47,7 @@ export const InsightsPage: React.FC<InsightsPageProps> = ({ cases, loading, erro
     <div className="cl-page cl-page-wide" data-testid="insights-page">
       <p className="cl-eyebrow">Insights</p>
       <h1 className="cl-page-title" tabIndex={-1}>The big picture</h1>
-      <p className="cl-page-lede">How decisions are being made across all recorded applications, and how you’ve used Clearly.</p>
+      <p className="cl-page-lede">How decisions are being made across all recorded applications, and how you’ve used DecisionTrace.</p>
 
       {error && <ServiceProblem kind={problem ?? "other"} what="page" />}
       {loading && <div className="cl-skeleton cl-skel-hero" role="status" aria-label="Loading insights" />}

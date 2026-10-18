@@ -75,7 +75,7 @@ export const SignInPage: React.FC<{ me: Me | null; onChanged: () => void }> = ({
   return (
     <div className="cl-page cl-signin">
       <p className="cl-eyebrow">Sign in</p>
-      <h1 className="cl-page-title" tabIndex={-1}>Welcome to Clearly</h1>
+      <h1 className="cl-page-title" tabIndex={-1}>Welcome to DecisionTrace</h1>
       <p className="cl-page-lede">Customers open their own decision with the link their lender sent. Lenders sign in with an access key. Or look around with fictional sample decisions.</p>
 
       {health && (
@@ -122,7 +122,7 @@ export const SignInPage: React.FC<{ me: Me | null; onChanged: () => void }> = ({
 
       <section className="cl-section" aria-labelledby="si-sample">
         <h2 id="si-sample" className="cl-h2">Just looking around</h2>
-        <p className="cl-muted">See how Clearly explains a decision, using fictional people and decisions. Nothing is saved.</p>
+        <p className="cl-muted">See how DecisionTrace explains a decision, using fictional people and decisions. Nothing is saved.</p>
         <button type="button" className="cl-btn cl-btn-ghost" onClick={explore}>Try the sample decisions</button>
       </section>
     </div>

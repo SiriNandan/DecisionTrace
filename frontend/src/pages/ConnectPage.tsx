@@ -209,7 +209,7 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
       <p className="cl-eyebrow">For lenders</p>
       <h1 className="cl-page-title" tabIndex={-1}>Connect your data</h1>
       <p className="cl-page-lede">
-        Choose a file of your decisions, in any layout. We suggest how your columns match what Clearly needs.
+        Choose a file of your decisions, in any layout. We suggest how your columns match what DecisionTrace needs.
         You check it, approve it, and only then is anything saved. Names and contact details are never stored.
       </p>
 

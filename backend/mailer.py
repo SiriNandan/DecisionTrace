@@ -21,10 +21,10 @@ def send_invite(to: str, name: str, lender: str, role_name: str, key: str, expir
     base = os.environ.get("APP_BASE_URL", "http://localhost:5173").rstrip("/")
     sender = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "no-reply@clearly.local"
     msg = EmailMessage()
-    msg["Subject"] = f"You've been invited to Clearly by {lender}"
+    msg["Subject"] = f"You've been invited to DecisionTrace by {lender}"
     msg["From"], msg["To"] = sender, to
     msg.set_content(
-        f"Hello {name},\n\n{lender} has given you access to Clearly as: {role_name}.\n\n"
+        f"Hello {name},\n\n{lender} has given you access to DecisionTrace as: {role_name}.\n\n"
         f"Your access key (keep it private; it is shown only in this email):\n\n    {key}\n\n"
         f"To sign in, open {base}/?p=signin and paste the key under \"I'm a lender\".\n"
         + (f"The key works until {expires[:10]}.\n" if expires else "")

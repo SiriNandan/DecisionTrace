@@ -63,12 +63,12 @@ const ProfileMenu: React.FC<{ me: Me; onSignOut?: () => void }> = ({ me, onSignO
 
 export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) => void; me?: Me | null; onSignOut?: () => void }> = ({ page, theme, onTheme, me = null, onSignOut }) => (
   <header className="cl-nav">
-    <Link to={{ page: "home" }} className="cl-brand" aria-label="Clearly home">
+    <Link to={{ page: "home" }} className="cl-brand" aria-label="DecisionTrace home">
       <svg viewBox="0 0 32 32" aria-hidden="true" width="28" height="28">
         <circle cx="16" cy="16" r="14" className="cl-brand-ring" />
         <path d="M8 17 L14 23 L24 10" className="cl-brand-tick" />
       </svg>
-      <span>Clearly</span>
+      <span>DecisionTrace</span>
     </Link>
     <nav className="cl-nav-links" aria-label="Main">
       {(me?.kind === "customer" ? CUSTOMER_NAV : me?.kind === "staff" ? staffNav(me.scopes ?? []) : NAV).map(([p, label]) => (
@@ -97,7 +97,7 @@ export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; custome
   <footer className="cl-footer">
     <div className="cl-footer-grid">
       <div>
-        <p className="cl-footer-brand">Clearly</p>
+        <p className="cl-footer-brand">DecisionTrace</p>
         <p className="cl-muted">Loan decisions, explained. It shows how each decision was reached. It never makes or changes decisions on its own.</p>
       </div>
       {!customer && (
@@ -114,7 +114,7 @@ export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; custome
       <nav aria-label="Legal"><h2 className="cl-footer-h">Legal</h2>
         <Link to={{ page: "privacy" }}>Privacy</Link><Link to={{ page: "terms" }}>Terms</Link><Link to={{ page: "accessibility" }}>Accessibility</Link></nav>
     </div>
-    <p className="cl-footer-fine">© {new Date().getFullYear()} Clearly demonstration. All people, credit reports and decisions are fictional.</p>
+    <p className="cl-footer-fine">© {new Date().getFullYear()} DecisionTrace demonstration. All people, credit reports and decisions are fictional.</p>
   </footer>
 );
 

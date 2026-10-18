@@ -279,7 +279,7 @@ export const App: React.FC = () => {
 
   // Per-route: title, scroll to top, move focus to the page heading, load data, count the view.
   useEffect(() => {
-    document.title = `${TITLES[route.page]} · Clearly`;
+    document.title = `${TITLES[route.page]} · DecisionTrace`;
     window.scrollTo?.(0, 0);
     if (route.page === "decision" && route.id) {
       void loadDecision(route.id);

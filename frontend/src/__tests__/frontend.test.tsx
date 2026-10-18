@@ -37,7 +37,7 @@ const customerText = (container: HTMLElement) => {
   return clone.textContent ?? "";
 };
 
-describe("Clearly customer experience", () => {
+describe("DecisionTrace customer experience", () => {
   beforeEach(() => {
     window.HTMLElement.prototype.scrollIntoView = jest.fn();
   });
@@ -191,7 +191,7 @@ describe("Site pages, onboarding and usage", () => {
       fireEvent.click(within(footer).getByRole("link", { name }));
       expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeInTheDocument();
     }
-    expect(document.title).toMatch(/Accessibility · Clearly/);
+    expect(document.title).toMatch(/Accessibility · DecisionTrace/);
   });
 
   test("unknown pages show a helpful 404", () => {

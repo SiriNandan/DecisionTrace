@@ -10,7 +10,7 @@ const FAQ: Array<[string, string]> = [
   ["Why is some evidence “no longer held”?", "Personal data can only be kept for a limited time. When an item has been removed under those rules, we tell you, and show how much of the original evidence is still available."],
   ["How do I ask for a decision to be reviewed?", "At the bottom of a decision, use “Think this is wrong?”. Say why in at least 20 characters. Your request is added to the record, and the original decision is kept as it was."],
   ["Can I keep a copy?", "Yes. Use “Save as PDF / print” on a decision, or “Copy link” to share the page."],
-  ["Does Clearly collect my data?", "No accounts, no cookies and no tracking. A few preferences stay in your browser only. See the Privacy page for details."],
+  ["Does DecisionTrace collect my data?", "No accounts, no cookies and no tracking. A few preferences stay in your browser only. See the Privacy page for details."],
   ["Is this real?", "No. This is a demonstration with fictional people and decisions."],
 ];
 
@@ -73,7 +73,7 @@ export const HelpPage: React.FC<{ onReplayTour: () => void }> = ({ onReplayTour 
 
       <section className="cl-card-rail" style={{ marginTop: 16 }}>
         <h2 className="cl-h3">Still stuck?</h2>
-        <p className="cl-muted">This is a demonstration, so there’s no live support team. In a live service, contact options would appear here. You can also read <Link to={{ page: "about" }}>how Clearly works</Link>.</p>
+        <p className="cl-muted">This is a demonstration, so there’s no live support team. In a live service, contact options would appear here. You can also read <Link to={{ page: "about" }}>how DecisionTrace works</Link>.</p>
       </section>
     </div>
   );

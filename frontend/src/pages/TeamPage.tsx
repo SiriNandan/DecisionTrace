@@ -63,7 +63,7 @@ export const TeamPage: React.FC = () => {
       <p className="cl-eyebrow">For lenders</p>
       <h1 className="cl-page-title" tabIndex={-1}>Your team</h1>
       <p className="cl-page-lede">
-        Give each person their own access key, with only the part of Clearly their job needs. Withdraw a key and it stops working at once.
+        Give each person their own access key, with only the part of DecisionTrace their job needs. Withdraw a key and it stops working at once.
         Everything you change here is written to the access log.
       </p>
 

@@ -5,7 +5,7 @@ type Kind = "privacy" | "terms" | "accessibility";
 const CONTENT: Record<Kind, { title: string; lede: string; sections: Array<[string, string]> }> = {
   privacy: {
     title: "Privacy",
-    lede: "Short version: Clearly doesn’t track you.",
+    lede: "Short version: DecisionTrace doesn’t track you.",
     sections: [
       ["What we collect", "Nothing about you. There are no accounts, no cookies and no analytics. The people and decisions shown are fictional."],
       ["What stays on your device", "Your theme choice, whether you’ve seen the welcome tour, the last decision you opened, and the private activity counts on the Insights page. They live in your browser’s local storage, are never sent anywhere, and “Clear my activity” removes the counts."],
@@ -17,7 +17,7 @@ const CONTENT: Record<Kind, { title: string; lede: string; sections: Array<[stri
     title: "Terms of use",
     lede: "Please read before using this demonstration.",
     sections: [
-      ["Demonstration only", "Clearly is a demonstration. All data is fictional. Nothing here is a real decision, financial advice, or an offer of credit."],
+      ["Demonstration only", "DecisionTrace is a demonstration. All data is fictional. Nothing here is a real decision, financial advice, or an offer of credit."],
       ["No guarantee", "Explanations are generated from saved evidence and checked automatically, but they can still contain mistakes. Always rely on the lender’s official communication for real decisions."],
       ["Fair use", "Please don’t try to disrupt the service or submit unlawful, abusive or personal information in review requests."],
       ["Changes", "This demonstration may change or be withdrawn at any time."],
@@ -25,7 +25,7 @@ const CONTENT: Record<Kind, { title: string; lede: string; sections: Array<[stri
   },
   accessibility: {
     title: "Accessibility",
-    lede: "Clearly is built so that everyone can use it.",
+    lede: "DecisionTrace is built so that everyone can use it.",
     sections: [
       ["What we’ve built in", "Keyboard access to every control, visible focus, a skip link, labelled forms, colour that is never the only signal, text and layouts that adapt to small screens, light and dark themes, and reduced motion when your device asks for it."],
       ["What we haven’t verified", "We haven’t had the site audited against WCAG by a specialist or tested it with every assistive technology. Treat this as a good-faith effort, not a certification."],

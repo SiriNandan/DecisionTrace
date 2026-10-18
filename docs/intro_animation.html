@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DecisionTrace intro</title>
+<style>
+  :root { --paper:#f6f2e9; --card:#fffdf8; --ink:#17211f; --ink2:#4b5a56; --line:#e0d8c6; --brand:#0f5c4d; --brandsoft:#dcefe8;
+          --good:#1c7a4b; --goodbg:#e2f3e8; --bad:#b3361f; --badbg:#fbe6e0; --review:#9a6200; --reviewbg:#fbefd0; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #0f1715; }
+  body { display: grid; place-items: center; overflow: hidden; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  /* 16:9 stage; every size below is a percentage of the stage so it scales to any screen */
+  .stage { position: relative; width: min(100vw, 177.78vh); aspect-ratio: 16/9; background: var(--paper); color: var(--ink); overflow: hidden; container-type: size; }
+  .scene { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; }
+  .go .s1 { animation: scene 4.2s ease both 0s; }
+  .go .s2 { animation: scene 6s ease both 3.9s; }
+  .go .s3 { animation: sceneHold 3.6s ease both 9.6s; }
+  @keyframes scene { 0% { opacity: 0; transform: scale(.98); } 8% { opacity: 1; transform: none; } 90% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes sceneHold { 0% { opacity: 0; transform: scale(.98); } 12% { opacity: 1; transform: none; } 100% { opacity: 1; } }
+  .k { font-size: 1.6cqw; letter-spacing: .18em; text-transform: uppercase; color: var(--brand); font-weight: 700; }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 4.6cqw; line-height: 1.12; text-align: center; }
+  .sub { font-size: 2cqw; color: var(--ink2); text-align: center; margin-top: 1.6cqw; }
+  .wrap { display: grid; gap: 2.4cqw; justify-items: center; padding: 0 8cqw; }
+
+  /* scene 1: nine declines then an approval */
+  .strip { display: flex; gap: .9cqw; }
+  .dot { width: 5cqw; height: 5cqw; border-radius: 1cqw; display: grid; place-items: center; font-size: 2.6cqw; font-weight: 800; opacity: 0; transform: scale(.4); }
+  .dot.d { background: var(--badbg); color: var(--bad); } .dot.a { background: var(--goodbg); color: var(--good); }
+  .go .dot { animation: pop .35s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(var(--i) * .17s + .5s); }
+  .go .dot.a { animation: pop .5s cubic-bezier(.2,1.6,.4,1) both 2.3s, glow 1.1s ease-in-out 2.9s 2; }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+  @keyframes glow { 50% { box-shadow: 0 0 0 1.2cqw rgba(28,122,75,.22); } }
+  .q { font-family: Fraunces, Georgia, serif; font-size: 3.2cqw; font-weight: 600; text-align: center; opacity: 0; }
+  .go .q { animation: rise .6s ease both 2.7s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(1cqw); } to { opacity: 1; transform: none; } }
+
+  /* scene 2: four perspectives around one record */
+  .hub { position: relative; width: 100cqw; height: 56.25cqw; }
+  .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 21cqw; padding: 2cqw 1cqw; background: var(--brand); color: #fff;
+            border-radius: 2cqw; text-align: center; font-weight: 700; font-size: 2.1cqw; box-shadow: 0 1cqw 3cqw -1cqw rgba(15,92,77,.5); opacity: 0; }
+  .center small { display: block; font-weight: 500; font-size: 1.3cqw; opacity: .85; margin-top: .5cqw; }
+  .go .center { animation: rise .6s ease both 4.1s; }
+  .node { position: absolute; width: 27cqw; padding: 1.5cqw 1.8cqw; background: var(--card); border: .18cqw solid var(--line); border-radius: 1.6cqw; opacity: 0; }
+  .node b { display: block; font-size: 2cqw; color: var(--brand); }
+  .node span { display: block; font-size: 1.55cqw; color: var(--ink2); margin-top: .5cqw; line-height: 1.35; }
+  .node em { display: block; font-style: normal; font-size: 1.35cqw; font-weight: 700; margin-top: .8cqw; color: var(--ink); }
+  .n1 { left: 5cqw; top: 8cqw; } .n2 { right: 5cqw; top: 8cqw; } .n3 { left: 5cqw; bottom: 8cqw; } .n4 { right: 5cqw; bottom: 8cqw; }
+  .go .n1 { animation: rise .6s ease both 4.8s; } .go .n2 { animation: rise .6s ease both 5.6s; }
+  .go .n3 { animation: rise .6s ease both 6.4s; } .go .n4 { animation: rise .6s ease both 7.2s; }
+  .n4 { border-color: var(--review); } .n4 b { color: var(--review); }
+  svg.lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ln { stroke: var(--brand); stroke-width: .25; stroke-dasharray: 60; stroke-dashoffset: 60; opacity: .5; fill: none; }
+  .go .l1 { animation: draw .7s ease both 4.8s; } .go .l2 { animation: draw .7s ease both 5.6s; }
+  .go .l3 { animation: draw .7s ease both 6.4s; } .go .l4 { animation: draw .7s ease both 7.2s; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* scene 3: sealed chain and the one-line promise */
+  .chain { display: flex; align-items: center; gap: .6cqw; }
+  .blk { width: 8cqw; height: 5cqw; border-radius: 1cqw; background: var(--brandsoft); border: .2cqw solid var(--brand); display: grid; place-items: center; font-size: 1.3cqw; font-weight: 700; color: var(--brand); opacity: 0; }
+  .lk { width: 2.4cqw; height: .25cqw; background: var(--brand); opacity: 0; }
+  .go .blk, .go .lk { animation: rise .4s ease both; animation-delay: calc(var(--i) * .22s + 10s); }
+  .tags { display: flex; gap: 1.4cqw; flex-wrap: wrap; justify-content: center; }
+  .tag { font-size: 1.8cqw; font-weight: 700; padding: .7cqw 1.8cqw; border-radius: 99cqw; background: var(--card); border: .18cqw solid var(--line); opacity: 0; }
+  .go .tag { animation: rise .5s ease both; animation-delay: calc(var(--i) * .35s + 11.4s); }
+  .brandline { font-family: Fraunces, Georgia, serif; font-size: 5.2cqw; font-weight: 600; color: var(--brand); opacity: 0; }
+  .go .brandline { animation: rise .7s ease both 10.2s; }
+  .foot { position: absolute; bottom: 1.6cqw; width: 100%; text-align: center; font-size: 1.2cqw; color: var(--ink2); }
+  .hint { position: fixed; right: 12px; bottom: 8px; color: #8aa; font: 12px system-ui; }
+</style>
+</head>
+<body>
+<div class="stage go" id="stage">
+
+  <section class="scene s1" aria-label="The problem">
+    <div class="wrap">
+      <p class="k">A real question every bank faces</p>
+      <div class="strip" aria-hidden="true">
+        <span class="dot d" style="--i:0">✕</span><span class="dot d" style="--i:1">✕</span><span class="dot d" style="--i:2">✕</span>
+        <span class="dot d" style="--i:3">✕</span><span class="dot d" style="--i:4">✕</span><span class="dot d" style="--i:5">✕</span>
+        <span class="dot d" style="--i:6">✕</span><span class="dot d" style="--i:7">✕</span><span class="dot d" style="--i:8">✕</span>
+        <span class="dot a" style="--i:9">✓</span>
+      </div>
+      <p class="q">Declined nine times, approved on the tenth.<br>Fraud, or a fair second chance?</p>
+    </div>
+  </section>
+
+  <section class="scene s2" aria-label="One record, four perspectives">
+    <div class="hub">
+      <svg class="lines" viewBox="0 0 100 56.25" preserveAspectRatio="none" aria-hidden="true">
+        <path class="ln l1" d="M32 17 L42 25"/><path class="ln l2" d="M68 17 L58 25"/>
+        <path class="ln l3" d="M32 39 L42 31"/><path class="ln l4" d="M68 39 L58 31"/>
+      </svg>
+      <div class="center">One trusted record<small>of every decision</small></div>
+      <div class="node n1"><b>Customer</b><span>Wants to know why, in plain words, and see only their own decision.</span><em>“Why was I declined?”</em></div>
+      <div class="node n2"><b>Bank / lender</b><span>Loads data from its own systems, reviews and explains decisions.</span><em>“Show me what happened.”</em></div>
+      <div class="node n3"><b>Auditor</b><span>Needs proof that nothing was changed after the fact.</span><em>“Can you prove it?”</em></div>
+      <div class="node n4"><b>Fraud team</b><span>Looks across a customer's whole history for risky patterns.</span><em>“Spot the pattern.”</em></div>
+    </div>
+  </section>
+
+  <section class="scene s3" aria-label="DecisionTrace">
+    <div class="wrap">
+      <p class="brandline">DecisionTrace</p>
+      <div class="chain" aria-hidden="true">
+        <span class="blk" style="--i:0">Decision</span><span class="lk" style="--i:1"></span><span class="blk" style="--i:2">Evidence</span><span class="lk" style="--i:3"></span>
+        <span class="blk" style="--i:4">Sealed</span><span class="lk" style="--i:5"></span><span class="blk" style="--i:6">Verified</span>
+      </div>
+      <div class="tags">
+        <span class="tag" style="--i:0">AI explains</span><span class="tag" style="--i:1">People decide</span><span class="tag" style="--i:2">Evidence sealed</span><span class="tag" style="--i:3">Fraud patterns flagged</span>
+      </div>
+      <p class="sub">Risk, fraud and trust, in one place.</p>
+    </div>
+  </section>
+
+  <p class="foot">Synthetic data only. Every person, credit report and decision in this demo is fictional.</p>
+</div>
+<p class="hint">Click or press R to replay · F for full screen</p>
+<script>
+  const stage = document.getElementById("stage");
+  const SPEED = 0.78;  // 1 = original pace; lower is slower (0.78 plays the intro in about 17 seconds)
+  const slow = () => requestAnimationFrame(() => document.getAnimations().forEach((a) => a.updatePlaybackRate(SPEED)));
+  const replay = () => { stage.classList.remove("go"); void stage.offsetWidth; stage.classList.add("go"); slow(); };
+  slow();
+  addEventListener("click", replay);
+  addEventListener("keydown", (e) => { if (e.key === "r" || e.key === "R") replay(); if (e.key === "f" || e.key === "F") document.documentElement.requestFullscreen?.(); });
+</script>
+</body>
+</html>

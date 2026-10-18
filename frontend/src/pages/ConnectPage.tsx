@@ -162,12 +162,20 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
   const importAll = async () => {
     if (mappingId == null) return;
     setError(null);
-    if (remote) {  // the server fetches the data itself, so it is loaded in one go (the server caps one load at 500 rows)
-      setBusy("Fetching and importing…");
+    if (remote) {  // the server fetches the data itself and loads it one page (up to 500 rows) at a time
+      const total = { created: 0, replayed: 0, rejected: 0, problems: [] as ImportSummary["results"] };
+      let offset: number | null = 0;
       try {
-        const r = await runImport(mappingId, { format: remote.format, source: remote.spec }, false, portfolio.trim() || undefined);
-        setSummary({ created: r.created, replayed: r.replayed, rejected: r.rejected, problems: r.results.filter((x) => x.status === "rejected") });
-      } catch (err) { fail(err); } finally { setBusy(null); }
+        while (offset !== null) {
+          setBusy("Fetching and importing…");
+          const r: ImportSummary = await runImport(mappingId, { format: remote.format, source: remote.spec }, false, portfolio.trim() || undefined, offset);
+          total.created += r.created; total.replayed += r.replayed; total.rejected += r.rejected;
+          total.problems.push(...r.results.filter((x) => x.status === "rejected"));
+          if (r.total_rows) setProgress(`${Math.min(r.total_rows, (r.next_offset ?? r.total_rows))} of ${r.total_rows} rows`);
+          offset = r.next_offset ?? null;
+        }
+        setSummary(total);
+      } catch (err) { fail(err); setSummary(total); } finally { setBusy(null); setProgress(null); }
       return;
     }
     if (!source) return;
@@ -447,7 +455,7 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
       {approved && (source || remote) && canImport && (
         <section className="cl-section" aria-labelledby="c3">
           <h2 id="c3" className="cl-h2">3. Import</h2>
-          <p className="cl-muted">{remote ? `This fetches your data from the ${remote.label} and saves it (up to 500 decisions at a time) with its evidence.` : `This saves ${source!.rows.length} decisions with their evidence.`} Running it again won’t create duplicates.</p>
+          <p className="cl-muted">{remote ? `This fetches your data from the ${remote.label} and saves it (in pages of 500) with its evidence.` : `This saves ${source!.rows.length} decisions with their evidence.`} Running it again won’t create duplicates.</p>
           <label className="cl-field"><span>Group these decisions (optional)</span>
             <input type="text" value={portfolio} maxLength={64} onChange={(e) => setPortfolio(e.target.value)} placeholder="For example: Leeds branch" />
             <small className="cl-muted">Your team administrator can limit a person to some groups.</small>

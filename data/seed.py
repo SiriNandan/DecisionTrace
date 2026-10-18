@@ -63,7 +63,13 @@ def seed_database(
     apply_migrations(target)
     load_policies(db_url=target)
     train_and_register_model(db_url=target, sync_db=True)
-    return seed_scenarios(db_url=target, data_dir=data_dir)
+    results = seed_scenarios(db_url=target, data_dir=data_dir)
+    from backend.migrate import set_app_role_password  # last: any migration run resets the role to the development password
+
+    with psycopg.connect(target, connect_timeout=5) as conn:
+        set_app_role_password(conn)
+        conn.commit()
+    return results
 
 
 def main() -> None:

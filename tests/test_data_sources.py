@@ -180,3 +180,38 @@ def test_import_from_a_url_matches_an_upload_and_is_idempotent(lenders: list[dic
     assert denied.status_code == 422 and "allowed data sources" in denied.text
     log = client.get("/v1/access-log?limit=50", headers=h(t["keys"]["lender_admin"])).json()
     assert any("source=url:bank.example" in str(r.get("object_id", "")) for r in log)
+
+
+def test_a_large_source_is_loaded_a_page_at_a_time(lenders: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch) -> None:
+    from decision_api import mappings_api
+
+    t = lenders[0]
+    client = TestClient(create_app())
+    mid = propose(client, t, "uk-paged", format="csv", content=UK).json()["mapping_id"]
+    approve(client, t, mid)
+    monkeypatch.setenv("DT_SOURCE_URL_ALLOWED_HOSTS", "bank.example")
+    public_dns(monkeypatch)
+    monkeypatch.setattr(ds, "_get", lambda url, headers: UK.encode("utf-8"))
+    monkeypatch.setattr(mappings_api, "MAX_IMPORT_ROWS", 15)
+    req = {"mapping_id": mid, "format": "csv", "source": {"type": "url", "url": "https://bank.example/x.csv"}}
+
+    seen_rows: list[int] = []
+    created = replayed = rejected = 0
+    offset: int | None = 0
+    pages = 0
+    while offset is not None:
+        r = client.post("/v1/imports", json={**req, "offset": offset}, headers=h(keys(t)[0]))
+        assert r.status_code == 200, r.text
+        body = r.json()
+        seen_rows += [x["row"] for x in body["results"]]
+        created, replayed, rejected = created + body["created"], replayed + body["replayed"], rejected + body["rejected"]
+        offset = body["next_offset"]
+        pages += 1
+        assert pages < 10
+    total = body["total_rows"]
+    assert pages == 3 and seen_rows == list(range(1, total + 1))  # every row once, numbered across pages
+    assert created + replayed + rejected == total and rejected == 0
+
+    # an uploaded file is not paged: too many rows is still refused
+    big = client.post("/v1/imports", json={"mapping_id": mid, "format": "csv", "content": UK}, headers=h(keys(t)[0]))
+    assert big.status_code == 422 and "at most 15" in big.text

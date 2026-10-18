@@ -138,6 +138,35 @@ describe("Connect your data", () => {
     expect(imp.body.rows).toBeUndefined();
   });
 
+  test("a large data source is loaded page after page until the server says it is done", async () => {
+    const calls = installFetch();
+    const base = (globalThis as unknown as { fetch: jest.Mock }).fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = jest.fn(async (url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      if (url.endsWith("/v1/imports")) {
+        calls.push({ url, body, headers: init.headers as Record<string, string> });
+        const off = body.offset ?? 0;
+        const last = off >= 1000;
+        return { ok: true, status: 200, json: async () => ({ mapping_id: 8, version: 2, dry_run: false, created: 500, replayed: 0, rejected: 0, total_rows: 1500, next_offset: last ? null : off + 500, results: [] }) };
+      }
+      return base(url, init);
+    });
+    render(<ConnectPage />);
+    fireEvent.click(screen.getByText("Or fetch it from a data source"));
+    await userEvent.type(screen.getByLabelText("Web address"), "https://files.bank.example/big.csv");
+    fireEvent.click(screen.getByRole("button", { name: "Use this data source" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check my data" }));
+    const table = await screen.findByTestId("match-table");
+    await userEvent.selectOptions(within(table).getByLabelText("Column for Model version"), "A fixed value…");
+    await userEvent.type(within(table).getByLabelText("Fixed value for Model version"), "m4");
+    await userEvent.selectOptions(screen.getByText("“R”").closest("label")!.querySelector("select")!, "Referred");
+    fireEvent.click(screen.getByRole("button", { name: "Approve this match" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Fetch and import" }));
+    expect(await screen.findByTestId("import-summary")).toHaveTextContent("1500 saved");
+    const imports = calls.filter((c) => c.url.endsWith("/v1/imports"));
+    expect(imports.map((c) => c.body.offset)).toEqual([undefined, 500, 1000]);
+  });
+
   test("a database source asks for one read-only query and is always read as JSON rows", async () => {
     const calls = installFetch();
     render(<ConnectPage />);

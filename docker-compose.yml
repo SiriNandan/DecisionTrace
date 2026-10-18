@@ -27,7 +27,8 @@ services:
       LLM_BACKEND: ${LLM_BACKEND:-fake}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
-      APP_DB_URL: postgresql://app_role:app_role_local_dev@postgres:5432/${POSTGRES_DB:-decisiontrace}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-}
+      APP_DB_URL: postgresql://app_role:${APP_DB_PASSWORD:-app_role_local_dev}@postgres:5432/${POSTGRES_DB:-decisiontrace}
       DT_API_KEY: ${DT_API_KEY:-dev-demo-key}
       DT_ID_SECRET: ${DT_ID_SECRET:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}

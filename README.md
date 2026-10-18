@@ -76,9 +76,10 @@ Limits of this demo, stated plainly:
 - **In-process rate limiting and cache.** They are per process and reset on restart; they do not work across several instances.
 - **Anchors are only protected from casual edits.** The anchor log and signed seals are copied to a bucket with a retention policy, but someone with admin rights on the VM or project could still change what is written before it is copied.
 - **Gemini is disabled.** `LLM_BACKEND=fake`; summaries come from the scripted backend.
+- **Large data sources load a page (500 rows) at a time.** The source is fetched again for each page, so a database query that changes between pages can give a mixed result; use a fixed export for big loads.
 - **Data sources are off until allowed.** Importing from a URL, a storage bucket or a database needs the operator to list the hosts or buckets in `DT_SOURCE_URL_ALLOWED_HOSTS`, `DT_SOURCE_GCS_ALLOWED_BUCKETS` or `DT_SOURCE_SQL_ALLOWED_HOSTS`.
 - **The fairness check does not show a gap with the registered model.** `loan_lr_v1` gives `employment_months` almost no weight; the eval report says so and adds a labelled stress test showing the detector flags a proxy when a model really uses one.
-- The application database role still uses the development password from the migrations; it is reachable only inside the Compose network.
+- The API's database role (`app_role`) gets a generated password (`APP_DB_PASSWORD`) when the database is seeded, and the API refuses to start in a deployed setting while it still has the development one. Both database roles are reachable only inside the Compose network.
 
 Next: Cloud SQL for the database, Cloud KMS-backed keys, SSO and MFA, and Cloud Run (which also needs a shared rate limiter and cache).
 

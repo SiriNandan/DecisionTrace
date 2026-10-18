@@ -193,6 +193,9 @@ export interface ImportSummary {
   created: number;
   replayed: number;
   rejected: number;
+  /** Only for data sources: how many rows the source has, and where the next page starts (null on the last page). */
+  total_rows?: number;
+  next_offset?: number | null;
   results: Array<{ row: number; status: string; problems?: string[] }>;
 }
 

@@ -70,6 +70,12 @@ def config_problems() -> list[str]:
     elif len(id_secret) < 16:
         problems.append("DT_ID_SECRET must be at least 16 characters.")
 
+    app_db = os.environ.get("APP_DB_URL", "").strip()
+    if not app_db:
+        problems.append("APP_DB_URL is not set (the API would connect as the owner role and bypass row-level security).")
+    elif "app_role_local_dev" in app_db:
+        problems.append("APP_DB_URL still uses the development password for app_role (set APP_DB_PASSWORD).")
+
     _check_writable_dir("DT_ANCHOR_LOG", problems, is_file=True)
     _check_writable_dir("DT_SEAL_PUBLISH_DIR", problems, is_file=False)
 

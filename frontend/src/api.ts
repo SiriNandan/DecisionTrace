@@ -225,8 +225,10 @@ export async function approveMapping(mappingId: number, note = ""): Promise<Mapp
   return postJson<MappingRecord>(`/v1/mappings/${mappingId}/approve`, { note });
 }
 
-export async function runImport(mappingId: number, source: SourceData, dryRun = false, portfolio?: string): Promise<ImportSummary> {
-  return postJson<ImportSummary>("/v1/imports", { mapping_id: mappingId, dry_run: dryRun, ...source, ...(portfolio ? { portfolio } : {}) });
+export async function runImport(mappingId: number, source: SourceData, dryRun = false, portfolio?: string, offset = 0): Promise<ImportSummary> {
+  return postJson<ImportSummary>("/v1/imports", {
+    mapping_id: mappingId, dry_run: dryRun, ...source, ...(portfolio ? { portfolio } : {}), ...(offset ? { offset } : {}),
+  });
 }
 
 export async function fetchMappings(): Promise<MappingListItem[]> {

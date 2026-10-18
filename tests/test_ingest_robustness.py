@@ -78,3 +78,4 @@ def test_import_survives_an_unexpected_row_failure_and_keeps_the_rest(
     assert [r["row"] for r in bad] == [3] and "server problem" in bad[0]["problems"][0]
     assert body["created"] + body["replayed"] == len(body["results"]) - 1
     assert body["created"] > 3  # rows after the failure were still recorded
+

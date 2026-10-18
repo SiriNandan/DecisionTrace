@@ -59,6 +59,7 @@ class ImportRequest(SourceData):
     mapping_id: int
     dry_run: bool = False
     portfolio: str | None = Field(default=None, min_length=1, max_length=64, description="Label every row loaded with this group (branch, product, region)")
+    offset: int = Field(default=0, ge=0, description="With a `source`: skip this many rows, to load a larger source one page at a time")
 
 
 def _status(conn: psycopg.Connection[Any], mapping_id: int) -> tuple[str, str | None]:
@@ -211,7 +212,15 @@ def import_file(req: ImportRequest, principal: Principal = Depends(require_scope
     if req.dry_run and "mappings:write" not in principal.scopes and "ingest:write" not in principal.scopes:
         raise HTTPException(status_code=403, detail="This sign-in isn't allowed to do that.")
     _, rows = _rows(req)
-    if len(rows) > MAX_IMPORT_ROWS:
+    total_rows = len(rows)
+    first_row = 1
+    next_offset: int | None = None
+    if req.source is not None:  # a source is fetched whole each time; load it a page at a time
+        rows = rows[req.offset: req.offset + MAX_IMPORT_ROWS]
+        first_row = req.offset + 1
+        if req.offset + MAX_IMPORT_ROWS < total_rows:
+            next_offset = req.offset + MAX_IMPORT_ROWS
+    elif len(rows) > MAX_IMPORT_ROWS:
         raise HTTPException(status_code=422, detail=f"Please send at most {MAX_IMPORT_ROWS} rows at a time.")
 
     with tenant_connection(principal.tenant_id) as conn:
@@ -223,7 +232,7 @@ def import_file(req: ImportRequest, principal: Principal = Depends(require_scope
         results: list[dict[str, Any]] = []
         new_records: list[dict[str, Any]] = []
         tally = {"created": 0, "replayed": 0, "rejected": 0}
-        for i, row in enumerate(rows, start=1):
+        for i, row in enumerate(rows, start=first_row):
             env, errs = apply_mapping(spec, row, source_mapping=stamp)
             if env is not None and req.portfolio:
                 env = env.model_copy(update={"portfolio": req.portfolio})
@@ -278,4 +287,5 @@ def import_file(req: ImportRequest, principal: Principal = Depends(require_scope
         except OSError:
             logger.exception("Could not write chain-head anchor for %s", rec["decision_id"])
     return {"mapping_id": m["mapping_id"], "version": m["version"], "dry_run": req.dry_run, **tally,
+            "total_rows": total_rows, "next_offset": next_offset,
             "quality": quality, "signals": signals, "results": results}

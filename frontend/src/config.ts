@@ -20,10 +20,9 @@ export function getApiUrl(): string {
   if (runtimeOverride && runtimeOverride.trim().length > 0) {
     return runtimeOverride.trim().replace(/\/+$/, "");
   }
-  const envUrl =
-    typeof process !== "undefined" && process.env && process.env.VITE_API_URL
-      ? process.env.VITE_API_URL
-      : "http://localhost:8000";
+  // Vite replaces `process.env.VITE_API_URL` with the build-time value, so no `typeof process` guard (it is
+  // undefined in a browser and would always fall through to the localhost default).
+  const envUrl = process.env.VITE_API_URL || "http://localhost:8000";
   return envUrl.trim().replace(/\/+$/, "");
 }
 

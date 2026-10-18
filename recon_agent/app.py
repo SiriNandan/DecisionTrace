@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
+from backend.startup_checks import check_startup_config
 from backend.web import configure_app
 from recon_agent.router import router as reconstruct_router
 
 
+@asynccontextmanager
+async def _lifespan(_: FastAPI):  # type: ignore[no-untyped-def]
+    check_startup_config()
+    yield
+
+
 app = FastAPI(
+    lifespan=_lifespan,
     title="DecisionTrace Reconstruction Agent",
     version="0.1.0",
     description=(

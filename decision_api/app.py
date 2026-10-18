@@ -24,6 +24,7 @@ from decision_api.service import (
     verify_decision,
 )
 from backend.anchoring import append_anchor
+from backend.startup_checks import check_startup_config
 from backend.web import configure_app
 from backend.migrate import apply_migrations, auto_migrate_enabled
 from backend.signals import signals_for_decision
@@ -83,7 +84,8 @@ def _anchor(created: dict[str, Any]) -> None:
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):  # type: ignore[no-untyped-def]
-    """In local development, bring an older database up to date on start so new screens don't hit missing tables."""
+    """Refuse unsafe configuration outside dev; in local development, bring an older database up to date on start."""
+    check_startup_config()
     if auto_migrate_enabled():
         try:
             applied = apply_migrations()

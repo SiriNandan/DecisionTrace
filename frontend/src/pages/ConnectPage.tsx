@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { approveMapping, fetchMapping, fetchMappings, needsSignIn, proposeMapping, runImport, saveMapping } from "../api";
+import { approveMapping, draftSqlQuery, fetchMapping, fetchMappings, needsSignIn, proposeMapping, runImport, saveMapping } from "../api";
 import { chunk, parseCsv, readFileText } from "../lib/csv";
 import { Link } from "../lib/router";
 import type { DataSourceSpec, FieldRuleContract, ImportSummary, MappingListItem, MappingPreview, MappingProposal, MappingRecord, MappingSpecContract, Me, SourceData } from "../types";
@@ -88,12 +88,20 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
 
   const resetChecks = () => { setError(null); setProposal(null); setSpec(null); setSummary(null); setApproved(false); setMappingId(null); setPreview(null); };
 
-  const useRemote = () => {
-    resetChecks(); setSource(null);
+  const [drafted, setDrafted] = useState<{ query: string; tables: Record<string, number>; model: string } | null>(null);
+  const useRemote = async () => {
+    resetChecks(); setSource(null); setDrafted(null);
+    let query = "";
+    if (remoteKind === "sql") {
+      setBusy("Reading the database structure and writing the query…");
+      try { const d = await draftSqlQuery(rDsn.trim()); query = d.query; setDrafted(d); }
+      catch (err) { setBusy(null); fail(err); return; }
+      setBusy(null);
+    }
     const spec: DataSourceSpec =
       remoteKind === "url" ? { type: "url", url: rUrl.trim(), ...(rToken ? { bearer_token: rToken } : {}) }
       : remoteKind === "gcs" ? { type: "gcs", uri: rUri.trim() }
-      : { type: "sql", dsn: rDsn.trim(), query: rQuery.trim() };
+      : { type: "sql", dsn: rDsn.trim(), query };
     let label: string;
     try {
       label = remoteKind === "url" ? `web address ${new URL(rUrl.trim()).hostname}`
@@ -103,7 +111,7 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
     setRemote({ format: remoteKind === "sql" ? "json" : remoteFormat, spec, label });
     setName(`${remoteKind}-source`);
   };
-  const remoteReady = remoteKind === "url" ? rUrl.trim() !== "" : remoteKind === "gcs" ? /^gs:\/\/[^/]+\/.+/.test(rUri.trim()) : rDsn.trim() !== "" && rQuery.trim() !== "";
+  const remoteReady = remoteKind === "url" ? rUrl.trim() !== "" : remoteKind === "gcs" ? /^gs:\/\/[^/]+\/.+/.test(rUri.trim()) : rDsn.trim() !== "";
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -315,9 +323,7 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
                 <input type="password" autoComplete="off" value={rDsn} onChange={(e) => setRDsn(e.target.value)} placeholder="postgresql://user:password@host:5432/database" />
                 <small className="cl-muted">Use an account that can only read. It is used for this request only and never saved.</small>
               </label>
-              <label className="cl-field"><span>Query (one SELECT)</span>
-                <textarea rows={3} value={rQuery} onChange={(e) => setRQuery(e.target.value)} placeholder="SELECT * FROM decisions WHERE decided_at >= '2026-01-01'" />
-              </label>
+              <p className="cl-muted">No query needed. The AI reads the table names, columns and links (never the data) and writes a read-only query that gives one row per loan application.</p>
             </>
           )}
           <p className="cl-muted">Your service administrator must allow each web host, storage bucket or database host first.</p>
@@ -326,6 +332,12 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
         {remote && (
           <>
             <p className="cl-muted" data-testid="remote-summary">Data source: {remote.label}.</p>
+            {drafted && (
+              <details className="cl-field" data-testid="drafted-query">
+                <summary>The AI read {Object.keys(drafted.tables).length} tables. Show the query it wrote</summary>
+                <pre className="cl-fine" style={{ whiteSpace: "pre-wrap" }}>{drafted.query}</pre>
+              </details>
+            )}
             <label className="cl-field"><span>Name for this layout</span>
               <input type="text" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
             </label>

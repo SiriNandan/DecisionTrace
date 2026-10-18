@@ -361,6 +361,10 @@ export async function setAiSummaryChoice(decisionId: string, granted: boolean): 
 }
 
 
+export async function draftSqlQuery(dsn: string): Promise<{ query: string; tables: Record<string, number>; model: string }> {
+  return postJson("/v1/sources/sql/draft-query", { dsn });
+}
+
 export async function fetchCustomers(): Promise<CustomerRow[]> {
   return getJson<CustomerRow[]>("/v1/customers");
 }

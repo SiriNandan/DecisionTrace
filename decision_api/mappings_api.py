@@ -116,6 +116,28 @@ def _rows(src: SourceData) -> tuple[list[str], list[dict[str, Any]]]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+class DraftQueryRequest(BaseModel):
+    dsn: str = Field(..., max_length=1000, description="postgresql://user:password@host:port/db, used for this request only")
+
+
+@router.post("/v1/sources/sql/draft-query")
+def draft_sql_query(req: DraftQueryRequest, principal: Principal = Depends(require_scope("mappings:write"))) -> dict[str, Any]:
+    """The AI reads the table structure (no data) and writes one read-only SELECT that yields a row per loan application."""
+    from backend.data_sources import SourceError, draft_query
+    from backend.mapping_ai import default_llm
+
+    llm = default_llm()
+    if llm is None:
+        raise HTTPException(status_code=422, detail="The AI model isn't switched on for this service, so a query can't be written.")
+    try:
+        result = draft_query(req.dsn, llm)
+    except SourceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    with tenant_connection(principal.tenant_id) as conn:
+        log_access(conn, principal, "sql_query_drafted", "mapping", "tables=" + str(len(result["tables"])))
+    return result
+
+
 @router.post("/v1/mappings/propose")
 def propose_mapping(req: ProposeRequest, principal: Principal = Depends(require_scope("mappings:write"))) -> dict[str, Any]:
     """Draft a mapping for an unfamiliar file. Nothing is imported, and nothing can be until a person approves it."""

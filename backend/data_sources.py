@@ -219,3 +219,84 @@ def load_from_source(source: DataSource, fmt: str) -> tuple[str | None, list[dic
         except UnicodeDecodeError as exc:
             raise SourceError("The source isn't readable as UTF-8 text.") from exc
     return None, _rows_from_json(raw)
+
+
+# ---------- let the AI write the query from the database's structure ----------
+
+def _connect_readonly(dsn: str) -> psycopg.Connection[Any]:
+    parsed = urlparse(dsn)
+    if parsed.scheme not in ("postgresql", "postgres") or not parsed.hostname:
+        raise SourceError("The database address must look like postgresql://user:password@host:port/database.")
+    if parsed.hostname.lower() not in _allowed("DT_SOURCE_SQL_ALLOWED_HOSTS"):
+        raise SourceError("That database host isn't on this service's list of allowed data sources.")
+    try:
+        conn = psycopg.connect(dsn, connect_timeout=int(TIMEOUT_SECONDS),
+                               options=f"-c default_transaction_read_only=on -c statement_timeout={SQL_TIMEOUT_MS}")
+    except psycopg.Error as exc:
+        raise SourceError("The database couldn't be reached with that address.") from exc
+    conn.read_only = True
+    return conn
+
+
+def describe_schema(dsn: str) -> dict[str, Any]:
+    """Table and column names, types and foreign keys only. No row data is read."""
+    with _connect_readonly(dsn) as conn, conn.cursor() as cur:
+        cur.execute("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' "
+                    "ORDER BY table_name, ordinal_position")
+        tables: dict[str, list[str]] = {}
+        for t, c, ty in cur.fetchall():
+            tables.setdefault(t, []).append(f"{c} {ty}")
+        cur.execute("SELECT tc.table_name, kcu.column_name, ccu.table_name, ccu.column_name "
+                    "FROM information_schema.table_constraints tc "
+                    "JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema "
+                    "JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name AND ccu.table_schema = tc.table_schema "
+                    "WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'")
+        fks = [f"{a}.{b} -> {c}.{d}" for a, b, c, d in cur.fetchall()]
+    if not tables:
+        raise SourceError("No readable tables were found for that login.")
+    return {"tables": tables, "foreign_keys": fks}
+
+
+QUERY_PROMPT = """You write ONE read-only PostgreSQL SELECT for a bank's lending database.
+
+Goal: one row per loan application, joining everything needed to describe the lender's decision on it.
+Include, with readable column aliases in double quotes (for example "Loan Number"):
+- the application reference, the customer reference, the decision outcome and decision date, the model's risk score or probability of default
+- the decline or review reasons as ONE comma-separated text column (use string_agg with ', ' as the separator; never use a semicolon anywhere)
+- the scorecard/model version and policy version if present
+- the evidence the decision used: income, requested amount, term, debt-to-income, loan-to-value, credit score, missed payments, utilisation,
+  enquiries, employment status, document or identity verification, and consent, wherever they exist
+Rules: use only the tables and columns listed below; LEFT JOIN optional tables so no application disappears; one row per application (use a
+subquery or LATERAL for anything that could repeat); no semicolons, no comments, no LIMIT, no INSERT/UPDATE/DELETE. Reply with JSON only: {{"query": "<the SELECT>"}}
+
+Tables and columns:
+{tables}
+
+Foreign keys:
+{fks}
+{feedback}"""
+
+
+def draft_query(dsn: str, llm: Any) -> dict[str, Any]:
+    schema = describe_schema(dsn)
+    tables = "\n".join(f"- {t}({', '.join(cols)})" for t, cols in schema["tables"].items())
+    fks = "\n".join(f"- {f}" for f in schema["foreign_keys"]) or "- none declared"
+    feedback, last_error = "", ""
+    for _ in range(2):
+        raw = llm(QUERY_PROMPT.format(tables=tables, fks=fks, feedback=feedback))
+        try:
+            query = str(json.loads(raw[raw.index("{"): raw.rindex("}") + 1]).get("query", "")).strip().rstrip(";").strip()
+        except (ValueError, json.JSONDecodeError):
+            query = ""
+        if not query or ";" in query or not _SELECT.match(query):
+            last_error = "The reply wasn't a single SELECT without semicolons."
+        else:
+            try:
+                with _connect_readonly(dsn) as conn, conn.cursor() as cur:
+                    cur.execute(f"SELECT * FROM ({query}) q LIMIT 3")  # type: ignore[arg-type]
+                    cur.fetchall()
+                return {"query": query, "tables": {t: len(c) for t, c in schema["tables"].items()}, "model": getattr(llm, "model", "model")}
+            except psycopg.Error as exc:
+                last_error = exc.diag.message_primary or "the query could not be run"
+        feedback = f"\nYour previous attempt failed: {last_error} Fix it and reply with JSON only."
+    raise SourceError(f"The AI couldn't write a working query ({last_error}).")

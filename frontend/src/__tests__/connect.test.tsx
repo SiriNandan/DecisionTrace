@@ -41,6 +41,7 @@ function installFetch() {
     const body = JSON.parse(String(init.body));
     calls.push({ url, body, headers: init.headers as Record<string, string> });
     const ok = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
+    if (url.endsWith("/v1/sources/sql/draft-query")) return ok({ query: "SELECT * FROM decisions", tables: { decisions: 9, customers: 5 }, model: "gemini-2.5-flash" });
     if (url.endsWith("/v1/mappings/propose")) return ok(PROPOSAL);
     if (url.endsWith("/v1/mappings")) return ok({ ...PROPOSAL, mapping_id: 8, version: 2, gaps: [], preview: { ...PROPOSAL.preview, valid: 3, invalid: 0, problems: [] } });
     if (url.endsWith("/approve")) return ok({ ...PROPOSAL, mapping_id: 8, status: "approved" });
@@ -167,20 +168,23 @@ describe("Connect your data", () => {
     expect(imports.map((c) => c.body.offset)).toEqual([undefined, 500, 1000]);
   });
 
-  test("a database source asks for one read-only query and is always read as JSON rows", async () => {
+  test("a database source needs only an address: the AI writes the query, which can be shown, and rows are read as JSON", async () => {
     const calls = installFetch();
     render(<ConnectPage />);
     fireEvent.click(screen.getByText("Or fetch it from a data source"));
     await userEvent.selectOptions(screen.getByTestId("remote-kind"), "sql");
     expect(screen.queryByText("What kind of file is it?")).toBeNull();
     await userEvent.type(screen.getByLabelText(/Database address/), "postgresql://ro:pw@db.bank.example:5432/loans");
-    await userEvent.type(screen.getByLabelText(/Query/), "SELECT * FROM decisions");
+    expect(screen.queryByLabelText(/Query/)).toBeNull();  // no query box: the AI writes it
     fireEvent.click(screen.getByRole("button", { name: "Use this data source" }));
     expect(await screen.findByTestId("remote-summary")).toHaveTextContent("database db.bank.example");
+    expect(await screen.findByTestId("drafted-query")).toHaveTextContent("The AI read 2 tables");
     expect(screen.queryByText(/pw@/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Check my data" }));
     await screen.findByTestId("match-table");
-    expect(calls[0].body).toMatchObject({ format: "json", source: { type: "sql", query: "SELECT * FROM decisions" } });
+    expect(calls[0].url).toMatch(/\/v1\/sources\/sql\/draft-query$/);  // first the AI writes the query
+    expect(calls[0].body).toEqual({ dsn: "postgresql://ro:pw@db.bank.example:5432/loans" });
+    expect(calls[1].body).toMatchObject({ format: "json", source: { type: "sql", query: "SELECT * FROM decisions" } });
   });
 
   test("explains a refused sign-in in plain words", async () => {

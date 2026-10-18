@@ -17,7 +17,11 @@ if str(ROOT_DIR) not in sys.path:
 
 from data.generate_applicants import DATA_DIR, write_synthetic_csv
 from data.load_policies import get_db_url
-from decision_api.service import EffectivePolicyRules, evaluate_application
+from decision_api.service import (
+    EffectivePolicyRules,
+    _resolve_model_registry_row,
+    evaluate_rules_and_outcome,
+)
 
 
 DEFAULT_FAIRNESS_POLICY = EffectivePolicyRules(
@@ -31,6 +35,17 @@ DEFAULT_FAIRNESS_POLICY = EffectivePolicyRules(
     required_documents=["income proof", "address proof"],
     delinquency_manual_review_min=2,
 )
+
+
+def _load_registered_model(db_url: str | None = None) -> dict[str, Any]:
+    """Load the registered model (MODEL_VERSION, default loan_lr_v1) the live decision path scores with."""
+    try:
+        with psycopg.connect(get_db_url(db_url), connect_timeout=5) as conn:
+            return _resolve_model_registry_row(conn)
+    except psycopg.OperationalError:
+        from data.train_model import train_and_register_model
+
+        return train_and_register_model(sync_db=False)["registry_row"]
 
 
 def _sync_fairness_groups_table(
@@ -66,15 +81,19 @@ def generate_fairness_scenario(
     group_size: int = 400,
     sync_db: bool = True,
     db_url: str | None = None,
+    registry_row: dict[str, Any] | None = None,
 ) -> dict[str, Path]:
     """Generate fairness_groups.csv and fairness_scenario_outcomes.csv with at least 300 applicants per group.
 
     Group B has a higher share of short employment_months (< 12 months), acting as a proxy
-    feature that lowers the model score and produces a measurable gap in approval rates.
+    feature. Applicants are scored with the registered model (or `registry_row` when given), so a gap
+    in approval rates appears only if that model actually relies on employment_months.
     """
     if group_size < 300:
         raise ValueError("group_size must be at least 300 per group.")
 
+    if registry_row is None:
+        registry_row = _load_registered_model(db_url)
     rng = np.random.default_rng(seed)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -119,7 +138,11 @@ def generate_fairness_scenario(
                 "payslip_status": "received",
                 "address_proof_status": "received",
             }
-            eval_res = evaluate_application(applicant_params, DEFAULT_FAIRNESS_POLICY)
+            eval_res = evaluate_rules_and_outcome(
+                applicant_params=applicant_params,
+                policy=DEFAULT_FAIRNESS_POLICY,
+                registry_row=registry_row,
+            )
 
             fairness_groups_rows.append(
                 {

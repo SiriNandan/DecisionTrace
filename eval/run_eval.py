@@ -392,7 +392,7 @@ def format_results_markdown(summary: dict[str, Any]) -> str:
         f"| **Numerical Accuracy (Reported Separately)** | Target: 100.0% grounded numbers | **{grounding['numerical_accuracy_rate'] * 100:.2f}%** (`{grounding['numerically_accurate_claims']}/{grounding['total_claims']}`) | PASS |",
         f"| **Guardrail Rejections (Clean / Probe)** | 0 on clean; 100% on injected | **{guardrails['clean_runs_total_rejections']}** clean / **{guardrails['probe']['guardrail_rejections']}/{guardrails['probe']['injected_unsupported_claims']}** probe | PASS |",
         f"| **Reconstruction Latency (Median / p95)** | `< 30,000 ms` budget | **Median: {latency['median_ms']:.2f} ms** / **p95: {latency['p95_ms']:.2f} ms** | PASS |",
-        f"| **Fairness Disparity Detection (`eval/fairness.py`)** | Detect Group A vs B gap (`> 0.15`) | **Diff: {fairness['selection_rate_difference']:.4f}**, **Ratio: {fairness['selection_rate_ratio']:.4f}** | PASS |",
+        f"| **Fairness Disparity Detection (`eval/fairness.py`)** | Detect Group A vs B gap (`> 0.15`) | **Diff: {fairness['selection_rate_difference']:.4f}**, **Ratio: {fairness['selection_rate_ratio']:.4f}** | {'DISPARITY DETECTED' if fairness['disparity_detected'] else 'NO DISPARITY DETECTED'} |",
         "",
         "---",
         "",

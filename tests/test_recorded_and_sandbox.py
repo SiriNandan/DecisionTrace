@@ -181,7 +181,7 @@ def test_override_and_tampering_show_in_the_recorded_report(client: TestClient, 
     ov = {"decision_id": dec, "new_outcome": "APPROVE", "reason": "Reviewed by a person; income confirmed.", "actor_role": "underwriter"}
     assert client.post("/overrides", json=ov, headers=h(t["keys"]["lender_analyst"])).status_code == 200
     rep = report_for(client, t, dec)
-    assert rep["outcome"] == "APPROVE" and rep["human_override"]["actor_role"] == "underwriter"
+    assert rep["outcome"] == "APPROVE" and rep["human_override"]["actor_role"] == "lender_analyst"
 
     with psycopg.connect(os.environ["DB_URL"]) as conn:  # owner-level edit, as an insider or DBA could do
         conn.execute(

@@ -425,7 +425,7 @@ def test_post_overrides_preserves_byte_identical_decision_and_snapshots_and_retu
         "Verified supplemental savings contract and co-signer guarantee clearing manual review."
     )
     assert len(override_reason) >= 20
-    actor_role = "senior_credit_underwriter"
+    actor_role = "admin"  # recorded from the credential (the open-demo admin), whatever the body claims
 
     ov_resp = api_client.post(
         "/overrides",
@@ -433,7 +433,6 @@ def test_post_overrides_preserves_byte_identical_decision_and_snapshots_and_retu
             "decision_id": decision_id,
             "new_outcome": new_outcome,
             "reason": override_reason,
-            "actor_role": actor_role,
         },
     )
     assert ov_resp.status_code == 200, ov_resp.text

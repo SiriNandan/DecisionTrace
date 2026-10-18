@@ -61,7 +61,10 @@ class OverrideRequest(BaseModel):
     reason: str = Field(
         ..., min_length=20, description="Justification for the override (minimum 20 characters)"
     )
-    actor_role: str = Field(..., min_length=1, description="Role of the reviewer recording the override")
+    actor_role: str | None = Field(
+        default=None,
+        description="Ignored. The recorded role always comes from the authenticated credential.",
+    )
 
 
 def _parse_uuid(value: str) -> uuid.UUID:
@@ -197,12 +200,13 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail="We couldn't find that decision.")
             if payload.new_outcome != "REFER":
                 raise HTTPException(status_code=403, detail="You can ask for a review, but only a person at the lender can change the result.")
-            payload = payload.model_copy(update={"actor_role": "customer"})
             kind = "review_request"
         elif "overrides:write" not in principal.scopes:
             raise HTTPException(status_code=403, detail="This sign-in isn't allowed to do that.")
         else:
             kind = "override"
+        # Who did this comes from the credential, never from the request body.
+        actor_role = "customer" if kind == "review_request" else principal.role
 
         try:
             with tenant_connection(principal.tenant_id) as conn:
@@ -216,7 +220,7 @@ def create_app() -> FastAPI:
                     decision_id=dec_uuid,
                     new_outcome=payload.new_outcome,
                     reason=payload.reason,
-                    actor_role=payload.actor_role,
+                    actor_role=actor_role,
                     kind=kind,
                 )
                 log_access(conn, principal, "override", "decision", str(dec_uuid))

@@ -175,7 +175,9 @@ def test_a_customer_can_ask_for_a_review_but_never_changes_the_result(client: Te
     assert again.status_code == 409 and "already asked" in again.json()["detail"]
     # a lender's own override still works, and still wins
     ov = {"decision_id": dec, "new_outcome": "APPROVE", "reason": "Reviewed by a person; income confirmed.", "actor_role": "underwriter"}
-    assert client.post("/overrides", json=ov, headers=analyst).status_code == 200
+    done = client.post("/overrides", json=ov, headers=analyst)
+    assert done.status_code == 200
+    assert done.json()["actor_role"] == "lender_analyst"  # taken from the key, not from the body's "underwriter"
     assert client.get(f"/decisions/{dec}", headers=analyst).json()["effective_outcome"] == "APPROVE"
 
 
@@ -623,3 +625,15 @@ def test_no_model_is_asked_without_consent_or_for_protected_decisions(client: Te
     client.post("/v1/signals/run", json={}, headers=h(t["keys"]["lender_analyst"]))
     assert model.asked == []
     assert _velocity(client, t)["why"]["source"] == "rule"
+
+
+def test_override_actor_role_cannot_be_spoofed(client: TestClient, lenders: list[dict[str, Any]]) -> None:
+    t = lenders[0]
+    analyst = {"X-API-Key": t["keys"]["lender_analyst"]}
+    dec = post(client, t, envelope("SPOOF-1"))
+    body = {"decision_id": dec, "new_outcome": "APPROVE", "reason": "Verified income documents by phone call."}
+    for claimed in ("admin", "chief_risk_officer", "customer"):
+        r = client.post("/overrides", json={**body, "actor_role": claimed}, headers=analyst)
+        assert r.status_code == 200 and r.json()["actor_role"] == "lender_analyst", claimed
+    # omitting the field works too
+    assert client.post("/overrides", json=body, headers=analyst).json()["actor_role"] == "lender_analyst"

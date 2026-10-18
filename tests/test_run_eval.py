@@ -72,6 +72,7 @@ def test_run_eval_generates_results_md_and_30_human_rating_rows(tmp_path: Path) 
     fairness = summary["fairness"]
     # Scored by the registered model, which barely uses employment_months: the planted proxy gap is not guaranteed.
     assert isinstance(fairness["disparity_detected"], bool)
+    assert summary["fairness_stress"]["disparity_detected"] is True  # the detector works when a proxy is really used
     assert fairness["groups"]["A"]["count"] >= 300
     assert fairness["groups"]["B"]["count"] >= 300
 

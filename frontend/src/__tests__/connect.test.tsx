@@ -45,7 +45,7 @@ function installFetch() {
     if (url.endsWith("/v1/mappings")) return ok({ ...PROPOSAL, mapping_id: 8, version: 2, gaps: [], preview: { ...PROPOSAL.preview, valid: 3, invalid: 0, problems: [] } });
     if (url.endsWith("/approve")) return ok({ ...PROPOSAL, mapping_id: 8, status: "approved" });
     if (url.endsWith("/v1/imports"))
-      return ok({ mapping_id: 8, version: 2, dry_run: false, created: body.rows.length, replayed: 0, rejected: 0, results: [] });
+      return ok({ mapping_id: 8, version: 2, dry_run: false, created: (body.rows ?? [1, 2, 3]).length, replayed: 0, rejected: 0, results: [] });
     throw new Error(`unexpected ${url}`);
   });
   return calls;
@@ -105,6 +105,53 @@ describe("Connect your data", () => {
     expect(imp.body.format).toBe("json");
     expect(imp.body.rows[1]).toMatchObject({ ref: "A2", result: "R" });
     expect(await axe(container, { rules: { "color-contrast": { enabled: false } } })).toHaveNoViolations();
+  });
+
+  test("a data source is fetched by the server: no rows pass through the browser and secrets are not shown back", async () => {
+    const calls = installFetch();
+    render(<ConnectPage />);
+    fireEvent.click(screen.getByText("Or fetch it from a data source"));
+    await userEvent.type(screen.getByLabelText("Web address"), "https://files.bank.example/decisions.csv");
+    await userEvent.type(screen.getByLabelText(/Access token/), "tok-secret");
+    fireEvent.click(screen.getByRole("button", { name: "Use this data source" }));
+    expect(await screen.findByTestId("remote-summary")).toHaveTextContent("web address files.bank.example");
+    expect(screen.queryByText(/tok-secret/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Check my data" }));
+    await screen.findByTestId("match-table");
+    expect(calls[0].body).toMatchObject({
+      format: "csv", source: { type: "url", url: "https://files.bank.example/decisions.csv", bearer_token: "tok-secret" },
+    });
+    expect(calls[0].body.content).toBeUndefined();
+    expect(calls[0].body.rows).toBeUndefined();
+
+    const table = screen.getByTestId("match-table");
+    await userEvent.selectOptions(within(table).getByLabelText("Column for Model version"), "A fixed value…");
+    await userEvent.type(within(table).getByLabelText("Fixed value for Model version"), "m4");
+    const rSelect = screen.getByText("“R”").closest("label")!.querySelector("select")!;
+    await userEvent.selectOptions(rSelect, "Referred");
+    fireEvent.click(screen.getByRole("button", { name: "Approve this match" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Fetch and import" }));
+    expect(await screen.findByTestId("import-summary")).toBeInTheDocument();
+    const imp = calls[calls.length - 1];
+    expect(imp.url).toBe("http://api.test/v1/imports");
+    expect(imp.body).toMatchObject({ mapping_id: 8, format: "csv", source: { type: "url" } });
+    expect(imp.body.rows).toBeUndefined();
+  });
+
+  test("a database source asks for one read-only query and is always read as JSON rows", async () => {
+    const calls = installFetch();
+    render(<ConnectPage />);
+    fireEvent.click(screen.getByText("Or fetch it from a data source"));
+    await userEvent.selectOptions(screen.getByTestId("remote-kind"), "sql");
+    expect(screen.queryByText("What kind of file is it?")).toBeNull();
+    await userEvent.type(screen.getByLabelText(/Database address/), "postgresql://ro:pw@db.bank.example:5432/loans");
+    await userEvent.type(screen.getByLabelText(/Query/), "SELECT * FROM decisions");
+    fireEvent.click(screen.getByRole("button", { name: "Use this data source" }));
+    expect(await screen.findByTestId("remote-summary")).toHaveTextContent("database db.bank.example");
+    expect(screen.queryByText(/pw@/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Check my data" }));
+    await screen.findByTestId("match-table");
+    expect(calls[0].body).toMatchObject({ format: "json", source: { type: "sql", query: "SELECT * FROM decisions" } });
   });
 
   test("explains a refused sign-in in plain words", async () => {

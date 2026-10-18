@@ -1,0 +1,6 @@
+# Automatic HTTPS for DT_DOMAIN (for example 203.0.113.7.sslip.io). Caddy sets X-Forwarded-For to the real client
+# address; the web container passes it on, and the API uses it for rate limits because DT_TRUST_PROXY=1.
+{$DT_DOMAIN} {
+	encode gzip
+	reverse_proxy web:80
+}

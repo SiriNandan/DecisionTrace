@@ -197,10 +197,16 @@ export interface ImportSummary {
 }
 
 export type SourceFormat = "csv" | "json";
+/** Where the server should fetch the data from, instead of the browser sending it. */
+export type DataSourceSpec =
+  | { type: "url"; url: string; bearer_token?: string }
+  | { type: "gcs"; uri: string }
+  | { type: "sql"; dsn: string; query: string };
 export interface SourceData {
   format: SourceFormat;
   content?: string;
   rows?: Array<Record<string, unknown>>;
+  source?: DataSourceSpec;
 }
 
 /* ---- Data checks and corrections ---- */

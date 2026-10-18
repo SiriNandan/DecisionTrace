@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { approveMapping, fetchMapping, fetchMappings, needsSignIn, proposeMapping, runImport, saveMapping } from "../api";
 import { chunk, parseCsv, readFileText } from "../lib/csv";
 import { Link } from "../lib/router";
-import type { FieldRuleContract, ImportSummary, MappingListItem, MappingPreview, MappingProposal, MappingRecord, MappingSpecContract, Me, SourceData } from "../types";
+import type { DataSourceSpec, FieldRuleContract, ImportSummary, MappingListItem, MappingPreview, MappingProposal, MappingRecord, MappingSpecContract, Me, SourceData } from "../types";
 
 type CoreField = "external_id" | "subject_ref" | "decided_at" | "outcome" | "score" | "model_version" | "policy_version";
 
@@ -53,6 +53,12 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
   const canPropose = can("mappings:write"), canApprove = can("mappings:approve"), canImport = can("ingest:write");
   const [name, setName] = useState("");
   const [source, setSource] = useState<{ file: string; format: "csv" | "json"; content?: string; rows: Array<Record<string, unknown>> } | null>(null);
+  // Data fetched by the server from a URL, a storage bucket or a database, instead of a file chosen here.
+  const [remote, setRemote] = useState<{ format: "csv" | "json"; spec: DataSourceSpec; label: string } | null>(null);
+  const [remoteKind, setRemoteKind] = useState<"url" | "gcs" | "sql">("url");
+  const [remoteFormat, setRemoteFormat] = useState<"csv" | "json">("csv");
+  const [rUrl, setRUrl] = useState(""), [rToken, setRToken] = useState(""), [rUri, setRUri] = useState("");
+  const [rDsn, setRDsn] = useState(""), [rQuery, setRQuery] = useState("");
   const [proposal, setProposal] = useState<MappingProposal | null>(null);
   const [spec, setSpec] = useState<MappingSpecContract | null>(null);
   const [mappingId, setMappingId] = useState<number | null>(null);
@@ -77,11 +83,32 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
   const fail = (e: unknown) => setError(needsSignIn(e) ? "Your sign-in is missing or isn’t allowed to do this. Please sign in again." : e instanceof Error ? e.message : "Something went wrong.");
 
   const sendable = (): SourceData | null =>
+    remote ? { format: remote.format, source: remote.spec } :
     source ? (source.format === "csv" ? { format: "csv", content: source.content } : { format: "json", rows: source.rows }) : null;
+
+  const resetChecks = () => { setError(null); setProposal(null); setSpec(null); setSummary(null); setApproved(false); setMappingId(null); setPreview(null); };
+
+  const useRemote = () => {
+    resetChecks(); setSource(null);
+    const spec: DataSourceSpec =
+      remoteKind === "url" ? { type: "url", url: rUrl.trim(), ...(rToken ? { bearer_token: rToken } : {}) }
+      : remoteKind === "gcs" ? { type: "gcs", uri: rUri.trim() }
+      : { type: "sql", dsn: rDsn.trim(), query: rQuery.trim() };
+    let label: string;
+    try {
+      label = remoteKind === "url" ? `web address ${new URL(rUrl.trim()).hostname}`
+        : remoteKind === "gcs" ? `storage ${rUri.trim().split("/").slice(0, 3).join("/")}`
+        : `database ${new URL(rDsn.trim()).hostname}`;
+    } catch { setError("That address doesn’t look right. Check it and try again."); return; }
+    setRemote({ format: remoteKind === "sql" ? "json" : remoteFormat, spec, label });
+    setName(`${remoteKind}-source`);
+  };
+  const remoteReady = remoteKind === "url" ? rUrl.trim() !== "" : remoteKind === "gcs" ? /^gs:\/\/[^/]+\/.+/.test(rUri.trim()) : rDsn.trim() !== "" && rQuery.trim() !== "";
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setRemote(null);
     setError(null); setProposal(null); setSpec(null); setSummary(null); setApproved(false); setMappingId(null); setPreview(null);
     try {
       const text = await readFileText(file);
@@ -103,7 +130,7 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
   const check = async () => {
     const src = sendable();
     if (!src) return;
-    setBusy("Reading your file…"); setError(null);
+    setBusy(remote ? "Fetching and reading your data…" : "Reading your file…"); setError(null);
     try {
       const p = await proposeMapping(name || "my-file", src);
       setProposal(p); setSpec(p.spec); setMappingId(p.mapping_id); setPreview(p.preview ?? null); setDirty(false); setApproved(false);
@@ -133,8 +160,17 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
   };
 
   const importAll = async () => {
-    if (!source || mappingId == null) return;
+    if (mappingId == null) return;
     setError(null);
+    if (remote) {  // the server fetches the data itself, so it is loaded in one go (the server caps one load at 500 rows)
+      setBusy("Fetching and importing…");
+      try {
+        const r = await runImport(mappingId, { format: remote.format, source: remote.spec }, false, portfolio.trim() || undefined);
+        setSummary({ created: r.created, replayed: r.replayed, rejected: r.rejected, problems: r.results.filter((x) => x.status === "rejected") });
+      } catch (err) { fail(err); } finally { setBusy(null); }
+      return;
+    }
+    if (!source) return;
     const parts = chunk(source.rows, CHUNK);
     const total = { created: 0, replayed: 0, rejected: 0, problems: [] as ImportSummary["results"] };
     try {
@@ -198,7 +234,7 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
                 {l.status === "proposed" && canApprove && (
                   <button type="button" className="cl-btn cl-btn-ghost" onClick={() => void reviewLayout(l.mapping_id)} aria-label={`Review ${l.name}`}>Review</button>
                 )}
-                {l.status === "approved" && canImport && source && !summary && (
+                {l.status === "approved" && canImport && (source || remote) && !summary && (
                   <button type="button" className="cl-btn cl-btn-ghost" onClick={() => useLayout(l)} aria-label={`Use ${l.name} for this file`}>Use for this file</button>
                 )}
               </li>
@@ -232,6 +268,64 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
           <span>A CSV or JSON file of decisions</span>
           <input type="file" accept=".csv,.json,text/csv,application/json" onChange={onFile} data-testid="file-input" />
         </label>
+        <details className="cl-field" data-testid="remote-source">
+          <summary>Or fetch it from a data source</summary>
+          <label className="cl-field"><span>Where is it?</span>
+            <select value={remoteKind} onChange={(e) => setRemoteKind(e.target.value as "url" | "gcs" | "sql")} data-testid="remote-kind">
+              <option value="url">A web address (https)</option>
+              <option value="gcs">A Google Cloud Storage file</option>
+              <option value="sql">A database (read-only query)</option>
+            </select>
+          </label>
+          {remoteKind !== "sql" && (
+            <label className="cl-field"><span>What kind of file is it?</span>
+              <select value={remoteFormat} onChange={(e) => setRemoteFormat(e.target.value as "csv" | "json")}>
+                <option value="csv">CSV</option>
+                <option value="json">JSON (a list of decisions)</option>
+              </select>
+            </label>
+          )}
+          {remoteKind === "url" && (
+            <>
+              <label className="cl-field"><span>Web address</span>
+                <input type="url" value={rUrl} onChange={(e) => setRUrl(e.target.value)} placeholder="https://files.yourbank.example/decisions.csv" />
+              </label>
+              <label className="cl-field"><span>Access token (optional)</span>
+                <input type="password" autoComplete="off" value={rToken} onChange={(e) => setRToken(e.target.value)} />
+                <small className="cl-muted">Used for this request only and never saved.</small>
+              </label>
+            </>
+          )}
+          {remoteKind === "gcs" && (
+            <label className="cl-field"><span>Storage path</span>
+              <input type="text" value={rUri} onChange={(e) => setRUri(e.target.value)} placeholder="gs://your-bucket/exports/decisions.csv" />
+            </label>
+          )}
+          {remoteKind === "sql" && (
+            <>
+              <label className="cl-field"><span>Database address</span>
+                <input type="password" autoComplete="off" value={rDsn} onChange={(e) => setRDsn(e.target.value)} placeholder="postgresql://user:password@host:5432/database" />
+                <small className="cl-muted">Use an account that can only read. It is used for this request only and never saved.</small>
+              </label>
+              <label className="cl-field"><span>Query (one SELECT)</span>
+                <textarea rows={3} value={rQuery} onChange={(e) => setRQuery(e.target.value)} placeholder="SELECT * FROM decisions WHERE decided_at >= '2026-01-01'" />
+              </label>
+            </>
+          )}
+          <p className="cl-muted">Your service administrator must allow each web host, storage bucket or database host first.</p>
+          <button type="button" className="cl-btn cl-btn-ghost" disabled={!remoteReady || busy !== null} onClick={useRemote}>Use this data source</button>
+        </details>
+        {remote && (
+          <>
+            <p className="cl-muted" data-testid="remote-summary">Data source: {remote.label}.</p>
+            <label className="cl-field"><span>Name for this layout</span>
+              <input type="text" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
+            </label>
+            {canPropose && (
+              <button type="button" className="cl-btn cl-btn-primary" onClick={check} disabled={busy !== null}>Check my data</button>
+            )}
+          </>
+        )}
         {source && (
           <>
             <p className="cl-muted" data-testid="file-summary">{source.file}: {source.rows.length} rows.</p>
@@ -347,19 +441,19 @@ export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
         </section>
       )}
 
-      {approved && source && !canImport && (
+      {approved && (source || remote) && !canImport && (
         <p className="cl-note cl-note-review" data-testid="officer-loads">Approved. Your data officer loads the file; this sign-in can’t.</p>
       )}
-      {approved && source && canImport && (
+      {approved && (source || remote) && canImport && (
         <section className="cl-section" aria-labelledby="c3">
           <h2 id="c3" className="cl-h2">3. Import</h2>
-          <p className="cl-muted">This saves {source.rows.length} decisions with their evidence. Running it again won’t create duplicates.</p>
+          <p className="cl-muted">{remote ? `This fetches your data from the ${remote.label} and saves it (up to 500 decisions at a time) with its evidence.` : `This saves ${source!.rows.length} decisions with their evidence.`} Running it again won’t create duplicates.</p>
           <label className="cl-field"><span>Group these decisions (optional)</span>
             <input type="text" value={portfolio} maxLength={64} onChange={(e) => setPortfolio(e.target.value)} placeholder="For example: Leeds branch" />
             <small className="cl-muted">Your team administrator can limit a person to some groups.</small>
           </label>
           <button type="button" className="cl-btn cl-btn-primary" disabled={busy !== null || summary !== null} onClick={importAll}>
-            Import {source.rows.length} decisions
+            {remote ? "Fetch and import" : `Import ${source!.rows.length} decisions`}
           </button>
         </section>
       )}

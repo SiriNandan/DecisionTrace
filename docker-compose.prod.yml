@@ -1,0 +1,47 @@
+# Deployed demo (one VM): layer this over docker-compose.yml.
+#   sudo docker compose --env-file /etc/decisiontrace/app.env \
+#        -f docker-compose.yml -f docker-compose.prod.yml --profile app up -d --build
+# Differences from local use: PostgreSQL and the web container are not published, Caddy terminates HTTPS on 80/443,
+# secrets come from the root-only env file (never from this repo), Gemini is off, and the anchor log and signed seals
+# are written to /var/lib/decisiontrace on the host so a timer can copy them to a locked bucket.
+services:
+  postgres:
+    ports: !reset []
+
+  api:
+    environment:
+      ENV: ${ENV:?set ENV=production in the env file}
+      LLM_BACKEND: fake
+      GEMINI_API_KEY: ""
+      DT_API_KEY: ${DT_API_KEY:?}
+      DT_ID_SECRET: ${DT_ID_SECRET:?}
+      DT_SEAL_KEY: ${DT_SEAL_KEY:?}
+      DT_MASTER_KEY: ${DT_MASTER_KEY:?}
+      DT_ANCHOR_KEY: ${DT_ANCHOR_KEY:?}
+      DT_ANCHOR_LOG: /var/dt/anchors/anchors.jsonl
+      DT_SEAL_PUBLISH_DIR: /var/dt/seals
+      CORS_ORIGINS: ${CORS_ORIGINS:?}
+      DT_TRUST_PROXY: "1"
+    volumes:
+      - /var/lib/decisiontrace:/var/dt
+
+  web:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DT_DOMAIN: ${DT_DOMAIN:?}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - web
+    profiles: ["app"]
+
+volumes:
+  caddy_data:

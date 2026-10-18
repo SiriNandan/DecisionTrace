@@ -9,6 +9,7 @@ from data.generate_applicants import DATA_DIR
 from data.generate_fairness_scenario import (
     DEFAULT_FAIRNESS_POLICY,
     generate_fairness_scenario,
+    stressed_registry_row,
 )
 from data.load_policies import get_db_url
 from decision_api.service import _resolve_model_registry_row, evaluate_rules_and_outcome
@@ -76,8 +77,7 @@ def test_fairness_detector_flags_proxy_when_model_relies_on_it(tmp_path) -> None
     """Detector check: a registered-model copy with a strong employment_months weight must be flagged."""
     with psycopg.connect(get_db_url(), connect_timeout=5) as conn:
         registry_row = _resolve_model_registry_row(conn)
-    stressed = dict(registry_row)
-    stressed["coefficients"] = {**registry_row["coefficients"], "employment_months": -4.0}
+    stressed = stressed_registry_row(registry_row)
 
     paths = generate_fairness_scenario(
         output_dir=tmp_path, seed=2026, group_size=400, sync_db=False, registry_row=stressed

@@ -64,6 +64,24 @@ docker compose --profile app up -d --build   # seed job + API + web UI on http:/
 
 Setup and deployment details, API keys, customer links and every feature's details and caveats (including what is not evidenced or not built) are in [docs/features.md](docs/features.md).
 
+## Deployed demo
+
+A single-VM demo on Google Cloud: Docker Compose (`docker-compose.yml` + `docker-compose.prod.yml`, `--profile app`), Caddy for HTTPS in front, secrets in a root-only env file (template: `deploy/app.env.example`; real values are generated and kept in Secret Manager, never in the repo). PostgreSQL and the web container are not published; only Caddy listens, on 80 and 443. With `ENV` other than `dev` the API refuses to start unless the seal key, master key, ID secret, anchor and seal-publish paths and `CORS_ORIGINS` are set safely (`backend/startup_checks.py`).
+
+Limits of this demo, stated plainly:
+
+- **Synthetic data only.** Nothing real should be loaded.
+- **Local key provider.** Lender evidence keys are derived from one master secret on the VM (`LocalKeyProvider`); there is no hardware or cloud key service.
+- **No SSO or MFA.** Access is by API key or customer link.
+- **In-process rate limiting and cache.** They are per process and reset on restart; they do not work across several instances.
+- **Anchors are only protected from casual edits.** The anchor log and signed seals are copied to a bucket with a retention policy, but someone with admin rights on the VM or project could still change what is written before it is copied.
+- **Gemini is disabled.** `LLM_BACKEND=fake`; summaries come from the scripted backend.
+- **Data sources are off until allowed.** Importing from a URL, a storage bucket or a database needs the operator to list the hosts or buckets in `DT_SOURCE_URL_ALLOWED_HOSTS`, `DT_SOURCE_GCS_ALLOWED_BUCKETS` or `DT_SOURCE_SQL_ALLOWED_HOSTS`.
+- **The fairness check does not show a gap with the registered model.** `loan_lr_v1` gives `employment_months` almost no weight; the eval report says so and adds a labelled stress test showing the detector flags a proxy when a model really uses one.
+- The application database role still uses the development password from the migrations; it is reachable only inside the Compose network.
+
+Next: Cloud SQL for the database, Cloud KMS-backed keys, SSO and MFA, and Cloud Run (which also needs a shared rate limiter and cache).
+
 ## Links
 
 - [Feature details and caveats](docs/features.md)

@@ -48,6 +48,18 @@ def _load_registered_model(db_url: str | None = None) -> dict[str, Any]:
         return train_and_register_model(sync_db=False)["registry_row"]
 
 
+STRESS_EMPLOYMENT_COEFFICIENT = -4.0
+
+
+def stressed_registry_row(registry_row: dict[str, Any]) -> dict[str, Any]:
+    """A copy of the registered model that leans heavily on employment_months.
+
+    For checking that the fairness detector flags a proxy when a model really uses one. It is not a deployed model."""
+    stressed = dict(registry_row)
+    stressed["coefficients"] = {**registry_row["coefficients"], "employment_months": STRESS_EMPLOYMENT_COEFFICIENT}
+    return stressed
+
+
 def _sync_fairness_groups_table(
     rows: list[dict[str, Any]],
     db_url: str | None = None,

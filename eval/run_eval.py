@@ -21,6 +21,7 @@ import csv
 from datetime import datetime, timedelta, timezone
 import json
 import math
+import tempfile
 from pathlib import Path
 import random
 import statistics
@@ -38,7 +39,11 @@ if str(ROOT_DIR) not in sys.path:
 
 from backend.integrity import verify_chain
 from data.generate_applicants import DATA_DIR
-from data.generate_fairness_scenario import generate_fairness_scenario
+from data.generate_fairness_scenario import (
+    _load_registered_model,
+    generate_fairness_scenario,
+    stressed_registry_row,
+)
 from data.load_policies import get_db_url
 from data.seed_scenarios import (
     _read_csv_rows,
@@ -359,6 +364,7 @@ def format_results_markdown(summary: dict[str, Any]) -> str:
     guardrails = summary["guardrails"]
     latency = summary["latency"]
     fairness = summary["fairness"]
+    fairness_stress = summary["fairness_stress"]
     grp_a = fairness["groups"]["A"]
     grp_b = fairness["groups"]["B"]
 
@@ -507,6 +513,14 @@ def format_results_markdown(summary: dict[str, Any]) -> str:
             "",
             f"> {fairness['limitations_note']}",
             "",
+            "### Detector check: proxy stress test (not a deployed model)",
+            "",
+            "The registered model gives `employment_months` almost no weight, so the cohort above is not expected to show the planted gap. "
+            "To confirm the detector would catch a proxy, the same cohort is scored by a **stressed copy** of the registered model with a strong `employment_months` weight:",
+            "",
+            f"- Group A approval rate **{fairness_stress['groups']['A']['approval_rate'] * 100:.2f}%**, Group B **{fairness_stress['groups']['B']['approval_rate'] * 100:.2f}%**",
+            f"- Selection-rate difference `{fairness_stress['selection_rate_difference']:.4f}`, ratio `{fairness_stress['selection_rate_ratio']:.4f}` -> **Disparity Detected: `{fairness_stress['disparity_detected']}`**",
+            "",
             "---",
             "",
             "## 11. Human Rating CSV Export (`30` Reports; Human Ratings Not Evidenced)",
@@ -558,8 +572,16 @@ def run_eval(
     if not (data_dir / "fairness_groups.csv").is_file() or not (
         data_dir / "fairness_scenario_outcomes.csv"
     ).is_file():
-        generate_fairness_scenario(data_dir=data_dir)
+        generate_fairness_scenario(output_dir=data_dir)
     fairness_report = evaluate_fairness_from_files(data_dir=data_dir)
+
+    # Detector check: the same cohort scored by a stressed copy of the registered model that relies on employment_months.
+    with tempfile.TemporaryDirectory() as stress_dir:
+        stress_paths = generate_fairness_scenario(
+            output_dir=Path(stress_dir), sync_db=False,
+            registry_row=stressed_registry_row(_load_registered_model(target_db_url)),
+        )
+        fairness_stress_report = evaluate_fairness_from_files(data_dir=stress_paths["fairness_groups"].parent)
 
     # 4. Run reconstruction across all 10 scenarios + 22 additional untouched decisions
     untouched_records: list[dict[str, Any]] = []
@@ -850,6 +872,7 @@ def run_eval(
         ),
         "latency": latency_summary,
         "fairness": fairness_report,
+        "fairness_stress": fairness_stress_report,
         "scenario_rows": scenario_rows,
         "human_rating_exported_count": len(human_rating_rows[:TARGET_UNTOUCHED_REPORTS]),
         "human_rating_csv_path": _display_path(exported_csv),

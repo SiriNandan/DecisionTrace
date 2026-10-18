@@ -18,8 +18,8 @@ services:
   api:
     environment:
       ENV: ${ENV:?set ENV=production in the env file}
-      LLM_BACKEND: fake
-      GEMINI_API_KEY: ""
+      LLM_BACKEND: ${LLM_BACKEND:-fake}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?}
       DT_API_KEY: ${DT_API_KEY:?}
       DT_ID_SECRET: ${DT_ID_SECRET:?}

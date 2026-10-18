@@ -6,7 +6,7 @@ import { extractClaimToken, extractDecisionId, signInCustomer, signInStaff, sign
 import type { Me, ServiceHealth } from "../types";
 
 export const ROLE_LABEL: Record<string, string> = {
-  lender_ingest: "Data engineer", lender_analyst: "Analyst", auditor: "Auditor", admin: "Administrator",
+  lender_ingest: "Data officer", lender_analyst: "Analyst", lender_support: "Support", lender_admin: "Team administrator", auditor: "Auditor", admin: "Administrator",
   consumer: "Customer", sample: "Sample",
 };
 

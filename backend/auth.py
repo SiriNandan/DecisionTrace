@@ -49,11 +49,26 @@ ROLE_SCOPES: dict[str, frozenset[str]] = {
             "ingest:write", "decide:write", "decisions:read", "reconstruct", "overrides:write", "audit:read",
             "mappings:read", "mappings:write", "mappings:approve", "quality:read", "quality:write", "quality:resolve",
             "claims:issue", "signals:read", "signals:write", "signals:resolve", "seals:read", "seals:write", "consent:write",
+            "team:manage",
         }
     ),
     # A customer opening their own decision from a link: one decision, nothing else.
     "consumer": frozenset({"decisions:read", "reconstruct", "review:request", "consent:write"}),
+    # The lender's own administrator: manages who has a key and what it can do. Sees who did what, not customers' decisions.
+    "lender_admin": frozenset({"team:manage", "audit:read"}),
+    # Front-line support: opens a decision to help a customer and gives them their link; cannot change anything.
+    "lender_support": frozenset({"decisions:read", "reconstruct", "claims:issue", "consent:write"}),
 }
+
+# Roles a lender's administrator may hand out ("admin" is the demo superuser and "consumer" comes from a customer's link).
+TEAM_ROLES = ("lender_admin", "lender_ingest", "lender_analyst", "lender_support", "auditor")
+# Roles that may be limited to some portfolios. Loading data and managing the team always cover the whole lender.
+SCOPABLE_ROLES = ("lender_analyst", "lender_support", "auditor")
+# What reaches across the whole lender; a key limited to some portfolios never has these.
+LENDER_WIDE_SCOPES = frozenset({
+    "audit:read", "signals:read", "signals:write", "signals:resolve", "quality:read", "quality:write", "quality:resolve",
+    "seals:read", "seals:write",
+})
 
 CUSTOMER_ROLE = "consumer"
 SIGN_IN_MESSAGE = "Sign-in is needed to see this."
@@ -68,6 +83,9 @@ class Principal:
     decision_id: str | None = None  # set for customer links: the one decision this sign-in may open
     claim_id: int | None = None
     expires_at: datetime | None = None
+    portfolios: tuple[str, ...] | None = None  # None = every portfolio; otherwise only decisions labelled with one of these
+    email: str = ""
+    extra_roles: tuple[str, ...] = ()  # further roles this person holds; their permissions are added to `role`'s
 
     @property
     def is_customer(self) -> bool:
@@ -75,7 +93,8 @@ class Principal:
 
     @property
     def scopes(self) -> frozenset[str]:
-        return ROLE_SCOPES.get(self.role, frozenset())
+        scopes = frozenset().union(*(ROLE_SCOPES.get(r, frozenset()) for r in (self.role, *self.extra_roles)))
+        return scopes - LENDER_WIDE_SCOPES if self.portfolios is not None else scopes
 
     @property
     def rate_key(self) -> str:
@@ -214,15 +233,17 @@ def _lookup_credential(key: str) -> Principal | None:
     with plain_connection() as conn:
         row = conn.execute(
             """
-            SELECT c.credential_id, c.tenant_id, c.role, c.label
+            SELECT c.credential_id, c.tenant_id, c.role, c.label, c.portfolios, c.email, c.extra_roles
             FROM api_credentials c JOIN tenants t ON t.tenant_id = c.tenant_id
             WHERE c.key_sha256 = %s AND c.revoked_at IS NULL AND t.status = 'active'
+              AND (c.expires_at IS NULL OR c.expires_at > now())
             """,
             (hash_api_key(key),),
         ).fetchone()
     if row is None:
         return None
-    return Principal(tenant_id=str(row[1]), role=str(row[2]), credential_id=int(row[0]), label=str(row[3]))
+    return Principal(tenant_id=str(row[1]), role=str(row[2]), credential_id=int(row[0]), label=str(row[3]),
+                     portfolios=tuple(row[4]) if row[4] is not None else None, email=str(row[5] or ""), extra_roles=tuple(row[6] or ()))
 
 
 class FailureTracker:
@@ -346,8 +367,10 @@ def ensure_decision_visible(conn: psycopg.Connection[Any], principal: Principal,
     row = None
     if principal.decision_id is None or principal.decision_id == str(decision_id):  # a customer link opens one decision
         row = conn.execute(
-            "SELECT 1 FROM decisions WHERE decision_id = %s AND tenant_id = %s",
-            (decision_id, principal.tenant_id),
+            "SELECT 1 FROM decisions WHERE decision_id = %s AND tenant_id = %s "
+            "AND (%s::text[] IS NULL OR portfolio = ANY(%s::text[]))",
+            (decision_id, principal.tenant_id, list(principal.portfolios) if principal.portfolios is not None else None,
+             list(principal.portfolios) if principal.portfolios is not None else None),
         ).fetchone()
     if row is None:
         log_access(conn, principal, "read", "decision", str(decision_id), "not_found")

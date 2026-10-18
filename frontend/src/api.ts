@@ -13,6 +13,7 @@ import {
   ConsentState,
   DecisionsPage,
   ImportSummary,
+  MappingListItem,
   MappingProposal,
   MappingRecord,
   MappingSpecContract,
@@ -27,6 +28,8 @@ import {
   SignalRunResult,
   ReconstructionReportContract,
   SourceData,
+  NewTeamKey,
+  TeamState,
 } from "./types";
 
 /** Plain-language fallbacks for when the server gives no readable reason. */
@@ -222,8 +225,30 @@ export async function approveMapping(mappingId: number, note = ""): Promise<Mapp
   return postJson<MappingRecord>(`/v1/mappings/${mappingId}/approve`, { note });
 }
 
-export async function runImport(mappingId: number, source: SourceData, dryRun = false): Promise<ImportSummary> {
-  return postJson<ImportSummary>("/v1/imports", { mapping_id: mappingId, dry_run: dryRun, ...source });
+export async function runImport(mappingId: number, source: SourceData, dryRun = false, portfolio?: string): Promise<ImportSummary> {
+  return postJson<ImportSummary>("/v1/imports", { mapping_id: mappingId, dry_run: dryRun, ...source, ...(portfolio ? { portfolio } : {}) });
+}
+
+export async function fetchMappings(): Promise<MappingListItem[]> {
+  return getJson<MappingListItem[]>("/v1/mappings");
+}
+
+export async function fetchMapping(mappingId: number): Promise<MappingRecord> {
+  return getJson<MappingRecord>(`/v1/mappings/${mappingId}`);
+}
+
+/* ---- Your team (lender administrator) ---- */
+
+export async function fetchTeam(): Promise<TeamState> {
+  return getJson<TeamState>("/v1/team");
+}
+
+export async function addTeamMember(body: { label: string; email: string; roles: string[]; expires_days?: number; portfolios?: string[] }): Promise<NewTeamKey> {
+  return postJson<NewTeamKey>("/v1/team/keys", body);
+}
+
+export async function withdrawTeamMember(credentialId: number): Promise<{ credential_id: number; state: string }> {
+  return postJson(`/v1/team/keys/${credentialId}/revoke`, {});
 }
 
 /* ---- Data checks ---- */

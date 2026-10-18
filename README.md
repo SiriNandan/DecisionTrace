@@ -18,6 +18,7 @@ DecisionTrace is a local-first reference implementation that records each loan d
 | **Runtime grounding guardrail**: every claim must cite evidence returned in-session, match the cited field/value, and use only returned numbers; violations are removed, counted in `guardrail_rejections`, and shown on each decision page as "Checked against the record" | `recon_agent/guardrails.py` |
 | Append-only human overrides that keep the original outcome intact | `POST /overrides` |
 | Evaluation, tamper experiments, fairness cohort check | `eval/`, `docs/` |
+| A lender administrator who manages the team (data officer, analyst, support, auditor) and limits who sees which portfolio | `decision_api/team_api.py`, `?p=team` |
 | Audit workbench UI | `frontend/` |
 
 Read the boundaries before relying on it: [docs/limitations.md](docs/limitations.md), [docs/model_card.md](docs/model_card.md), [docs/regulatory_mapping.md](docs/regulatory_mapping.md).

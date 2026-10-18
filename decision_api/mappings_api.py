@@ -52,6 +52,7 @@ class ReviewRequest(BaseModel):
 class ImportRequest(SourceData):
     mapping_id: int
     dry_run: bool = False
+    portfolio: str | None = Field(default=None, min_length=1, max_length=64, description="Label every row loaded with this group (branch, product, region)")
 
 
 def _status(conn: psycopg.Connection[Any], mapping_id: int) -> tuple[str, str | None]:
@@ -213,6 +214,8 @@ def import_file(req: ImportRequest, principal: Principal = Depends(require_scope
         tally = {"created": 0, "replayed": 0, "rejected": 0}
         for i, row in enumerate(rows, start=1):
             env, errs = apply_mapping(spec, row, source_mapping=stamp)
+            if env is not None and req.portfolio:
+                env = env.model_copy(update={"portfolio": req.portfolio})
             if env is None:
                 results.append({"row": i, "status": "rejected", "problems": errs})
                 tally["rejected"] += 1

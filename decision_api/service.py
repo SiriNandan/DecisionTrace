@@ -994,6 +994,7 @@ def list_decisions_page(
     tenant_id: str | None = None,
     only_decision_id: str | None = None,
     cursor: str | None = None,
+    portfolios: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """One page of decisions, newest first, and a marker for the next page (None when this is the last).
 
@@ -1021,13 +1022,14 @@ def list_decisions_page(
                 FROM decisions d
                 WHERE (%s::text IS NULL OR d.tenant_id = %s)
                   AND (%s::uuid IS NULL OR d.decision_id = %s::uuid)
+                  AND (%s::text[] IS NULL OR d.portfolio = ANY(%s::text[]))
                   AND (%s::timestamptz IS NULL OR d.decided_at < %s OR (d.decided_at = %s AND d.decision_id > %s::uuid))
             ) q
             WHERE (%s::text IS NULL OR q.applicant = %s)
             ORDER BY q.decided_at DESC, q.decision_id ASC
             LIMIT %s;
             """,
-            (tenant_id, tenant_id, only_decision_id, only_decision_id, after_t, after_t, after_t, after_i,
+            (tenant_id, tenant_id, only_decision_id, only_decision_id, portfolios, portfolios, after_t, after_t, after_t, after_i,
              applicant_id, applicant_id, limit + 1),
         )
         rows = cur.fetchall()

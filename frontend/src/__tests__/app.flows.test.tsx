@@ -11,7 +11,7 @@ import type { Me, SignalItem } from "../types";
 const ID = "00000000-0000-0000-0000-000000000001";
 const TOKEN = "dtc_" + "c".repeat(43);
 const CUSTOMER: Me = { role: "consumer", kind: "customer", tenant_id: "acme", tenant_name: "Acme Bank", label: "", scopes: ["decisions:read", "reconstruct", "review:request"], decision_id: ID, expires_at: "2026-12-01T00:00:00Z" };
-const STAFF: Me = { role: "lender_analyst", kind: "staff", tenant_id: "acme", tenant_name: "Acme Bank", label: "", scopes: ["decisions:read", "claims:issue", "signals:read"], decision_id: null, expires_at: null };
+const STAFF: Me = { role: "lender_analyst", kind: "staff", tenant_id: "acme", tenant_name: "Acme Bank", label: "", scopes: ["decisions:read", "claims:issue", "signals:read", "mappings:read"], decision_id: null, expires_at: null };
 
 type Seen = { url: string; method: string; headers: Record<string, string>; body: any };
 function install(routes: Record<string, (seen: Seen) => { status: number; body: unknown } | "network">) {
@@ -60,7 +60,8 @@ describe("first visit and trouble", () => {
     expect(getSession().mode).toBe("sample");
     expect(screen.getByTestId("who")).toHaveTextContent("Sample decisions");
     expect(screen.queryByTestId("service-problem")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Leave samples" }));
+    fireEvent.click(screen.getByTestId("profile-button"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Leave samples" }));
     expect(getSession().mode).toBeNull();
   });
 
@@ -95,7 +96,8 @@ describe("first visit and trouble", () => {
     expect(seen.find((s) => s.url.includes("/decisions?"))!.headers["X-API-Key"]).toBe("dtk_good");
     expect(screen.getByRole("link", { name: "Connect your data" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Risk signals" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByTestId("profile-button"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(getSession().mode).toBeNull();
   });
 });
@@ -241,7 +243,8 @@ describe("things the independent review found", () => {
     await screen.findByTestId("decision-record");
     await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("Your decision"));
     expect(window.localStorage.getItem("clearly:last-decision")).toBeNull();  // the earlier person's note was cleared on sign-in
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByTestId("profile-button"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(window.localStorage.getItem("clearly:last-decision")).toBeNull();
     expect(getSession().mode).toBeNull();
   });

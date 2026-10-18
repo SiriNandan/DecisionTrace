@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from "react";
-import { approveMapping, needsSignIn, proposeMapping, runImport, saveMapping } from "../api";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { approveMapping, fetchMapping, fetchMappings, needsSignIn, proposeMapping, runImport, saveMapping } from "../api";
 import { chunk, parseCsv, readFileText } from "../lib/csv";
 import { Link } from "../lib/router";
-import type { FieldRuleContract, ImportSummary, MappingPreview, MappingProposal, MappingSpecContract, SourceData } from "../types";
+import type { FieldRuleContract, ImportSummary, MappingListItem, MappingPreview, MappingProposal, MappingRecord, MappingSpecContract, Me, SourceData } from "../types";
 
 type CoreField = "external_id" | "subject_ref" | "decided_at" | "outcome" | "score" | "model_version" | "policy_version";
 
@@ -47,7 +47,10 @@ function withColumn(spec: MappingSpecContract, field: CoreField, value: string):
   return { ...spec, [field]: next };
 }
 
-export const ConnectPage: React.FC = () => {
+export const ConnectPage: React.FC<{ me?: Me | null }> = ({ me = null }) => {
+  // With no sign-in details given (as in the sample), everything is offered; otherwise each step needs its own permission.
+  const can = (scope: string) => !me || me.scopes.includes(scope);
+  const canPropose = can("mappings:write"), canApprove = can("mappings:approve"), canImport = can("ingest:write");
   const [name, setName] = useState("");
   const [source, setSource] = useState<{ file: string; format: "csv" | "json"; content?: string; rows: Array<Record<string, unknown>> } | null>(null);
   const [proposal, setProposal] = useState<MappingProposal | null>(null);
@@ -59,7 +62,16 @@ export const ConnectPage: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+  const [portfolio, setPortfolio] = useState("");
+  const [layouts, setLayouts] = useState<MappingListItem[] | null>(null);
+  const [looking, setLooking] = useState<MappingRecord | null>(null);
   const [summary, setSummary] = useState<{ created: number; replayed: number; rejected: number; problems: ImportSummary["results"] } | null>(null);
+
+  const loadLayouts = useCallback(async () => {
+    if (!me || !me.scopes.includes("mappings:read")) return;
+    try { setLayouts(await fetchMappings()); } catch { setLayouts([]); }
+  }, [me]);
+  useEffect(() => { void loadLayouts(); }, [loadLayouts]);
 
   const gaps = useMemo(() => (spec ? gapsOf(spec) : []), [spec]);
   const fail = (e: unknown) => setError(needsSignIn(e) ? "Your sign-in is missing or isn’t allowed to do this. Please sign in again." : e instanceof Error ? e.message : "Something went wrong.");
@@ -129,13 +141,24 @@ export const ConnectPage: React.FC = () => {
       for (let i = 0; i < parts.length; i++) {
         setBusy(`Importing part ${i + 1} of ${parts.length}…`);
         setProgress(`${Math.min((i + 1) * CHUNK, source.rows.length)} of ${source.rows.length} rows`);
-        const r = await runImport(mappingId, { format: "json", rows: parts[i] });
+        const r = await runImport(mappingId, { format: "json", rows: parts[i] }, false, portfolio.trim() || undefined);
         total.created += r.created; total.replayed += r.replayed; total.rejected += r.rejected;
         total.problems.push(...r.results.filter((x) => x.status === "rejected").map((x) => ({ ...x, row: x.row + i * CHUNK })));
       }
       setSummary(total);
     } catch (err) { fail(err); setSummary(total); } finally { setBusy(null); setProgress(null); }
   };
+
+  const reviewLayout = async (id: number) => {
+    setError(null);
+    try { setLooking(await fetchMapping(id)); } catch (err) { fail(err); }
+  };
+  const approveLayout = async (id: number) => {
+    setBusy("Approving…"); setError(null);
+    try { await approveMapping(id, "Approved in the Connect page"); setLooking(null); await loadLayouts(); }
+    catch (err) { fail(err); } finally { setBusy(null); }
+  };
+  const useLayout = (l: MappingListItem) => { setMappingId(l.mapping_id); setApproved(true); setProposal(null); setSpec(null); setSummary(null); };
 
   return (
     <div className="cl-page cl-connect">
@@ -148,6 +171,61 @@ export const ConnectPage: React.FC = () => {
 
       {error && <div className="cl-note cl-note-bad" role="alert"><strong>{error}</strong></div>}
 
+      {me && (
+        <section className="cl-section" aria-labelledby="c0" data-testid="who-does-what">
+          <h2 id="c0" className="cl-h2">Who does what</h2>
+          <ol>
+            <li>The <strong>data officer</strong> chooses a file and checks how its columns were read.</li>
+            <li>An <strong>analyst</strong> reviews that match and approves it.</li>
+            <li>The <strong>data officer</strong> loads the file. Nobody else can load data.</li>
+          </ol>
+          <p className="cl-muted" data-testid="your-part">
+            {canImport ? "You’re the data officer: you choose the file and load it once an analyst has approved the match."
+              : canApprove ? "You’re an analyst: review the layouts waiting for you below. Loading data is done by your data officer."
+              : "You can see layouts here, but loading data and approving them is done by others on your team."}
+          </p>
+        </section>
+      )}
+
+      {layouts && layouts.length > 0 && (
+        <section className="cl-section" aria-labelledby="c-l" data-testid="layouts">
+          <h2 id="c-l" className="cl-h2">Layouts your team has set up</h2>
+          <ul className="cl-findings">
+            {layouts.map((l) => (
+              <li key={l.mapping_id} className="cl-finding is-info" data-testid={`layout-${l.mapping_id}`}>
+                <p className="cl-finding-msg"><strong>{l.name}</strong> <span className="cl-muted">version {l.version}</span></p>
+                <p className="cl-muted">{l.status === "approved" ? "Approved and ready to use" : l.status === "proposed" ? "Waiting for an analyst to approve it" : "Turned down"}</p>
+                {l.status === "proposed" && canApprove && (
+                  <button type="button" className="cl-btn cl-btn-ghost" onClick={() => void reviewLayout(l.mapping_id)} aria-label={`Review ${l.name}`}>Review</button>
+                )}
+                {l.status === "approved" && canImport && source && !summary && (
+                  <button type="button" className="cl-btn cl-btn-ghost" onClick={() => useLayout(l)} aria-label={`Use ${l.name} for this file`}>Use for this file</button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {looking && (
+            <div className="cl-note cl-note-review" data-testid="looking">
+              <strong>{looking.name}: how the columns were matched</strong>
+              <ul>
+                {FIELDS.map(([f, label]) => {
+                  const r = looking.spec[f];
+                  return <li key={f}>{label}: {r?.column ? `column “${r.column}”` : r?.const != null && r.const !== PLACEHOLDER ? `fixed value “${String(r.const)}”` : "not found"}</li>;
+                })}
+              </ul>
+              {looking.gaps.length > 0 && <span>Still needed: {looking.gaps.join(", ")}.</span>}
+              <div className="cl-actions">
+                <button type="button" className="cl-btn cl-btn-primary" disabled={busy !== null || looking.gaps.length > 0} onClick={() => void approveLayout(looking.mapping_id)}>Approve this match</button>
+                <button type="button" className="cl-btn cl-btn-ghost" onClick={() => setLooking(null)}>Close</button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {!canPropose && !canImport ? (
+        <p className="cl-muted" data-testid="no-loading">Choosing and loading files isn’t part of this role.</p>
+      ) : (
       <section className="cl-section" aria-labelledby="c1">
         <h2 id="c1" className="cl-h2">1. Choose your file</h2>
         <label className="cl-field">
@@ -160,12 +238,15 @@ export const ConnectPage: React.FC = () => {
             <label className="cl-field"><span>Name for this layout</span>
               <input type="text" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
             </label>
-            <button type="button" className="cl-btn cl-btn-primary" onClick={check} disabled={busy !== null || source.rows.length === 0}>
-              Check my file
-            </button>
+            {canPropose && (
+              <button type="button" className="cl-btn cl-btn-primary" onClick={check} disabled={busy !== null || source.rows.length === 0}>
+                Check my file
+              </button>
+            )}
           </>
         )}
       </section>
+      )}
 
       {busy && <p role="status" className="cl-muted">{busy}{progress ? ` (${progress})` : ""}</p>}
 
@@ -252,18 +333,31 @@ export const ConnectPage: React.FC = () => {
           {dirty && <p className="cl-muted" role="status">You’ve made changes. Approving will save them first.</p>}
           {gaps.length > 0 && <p className="cl-muted" data-testid="gaps">Still needed: {gaps.join(", ")}.</p>}
 
-          <div className="cl-actions">
-            <button type="button" className="cl-btn cl-btn-primary" disabled={busy !== null || gaps.length > 0 || approved} onClick={approve}>
-              {approved ? "Approved" : "Approve this match"}
-            </button>
-          </div>
+          {canApprove ? (
+            <div className="cl-actions">
+              <button type="button" className="cl-btn cl-btn-primary" disabled={busy !== null || gaps.length > 0 || approved} onClick={approve}>
+                {approved ? "Approved" : "Approve this match"}
+              </button>
+            </div>
+          ) : (
+            <p className="cl-note cl-note-review" role="status" data-testid="needs-analyst">
+              An analyst needs to approve this match before anything is loaded. It is saved as “{name || "my-file"}”{mappingId != null ? ` (number ${mappingId})` : ""}. Come back once they have, and choose it under “Layouts your team has set up”.
+            </p>
+          )}
         </section>
       )}
 
-      {approved && source && (
+      {approved && source && !canImport && (
+        <p className="cl-note cl-note-review" data-testid="officer-loads">Approved. Your data officer loads the file; this sign-in can’t.</p>
+      )}
+      {approved && source && canImport && (
         <section className="cl-section" aria-labelledby="c3">
           <h2 id="c3" className="cl-h2">3. Import</h2>
           <p className="cl-muted">This saves {source.rows.length} decisions with their evidence. Running it again won’t create duplicates.</p>
+          <label className="cl-field"><span>Group these decisions (optional)</span>
+            <input type="text" value={portfolio} maxLength={64} onChange={(e) => setPortfolio(e.target.value)} placeholder="For example: Leeds branch" />
+            <small className="cl-muted">Your team administrator can limit a person to some groups.</small>
+          </label>
           <button type="button" className="cl-btn cl-btn-primary" disabled={busy !== null || summary !== null} onClick={importAll}>
             Import {source.rows.length} decisions
           </button>

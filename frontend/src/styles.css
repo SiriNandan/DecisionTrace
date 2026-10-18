@@ -305,3 +305,39 @@ h1:focus { outline: none; }
 .cl-h4 { font-size: 14px; margin: 14px 0 4px; color: var(--ink-2); }
 @media (max-width: 760px) { .cl-who-name { max-width: 84px; font-size: 12px; } }
 .cl-check { margin-top: 12px; overflow-wrap: anywhere; } .cl-check .cl-fine { margin-top: 4px; } .cl-check ul { padding-left: 18px; margin: 6px 0 0; }
+
+/* Team, profile menu, profile page */
+.cl-team { max-width: 820px; margin: 0 auto; }
+.cl-team .cl-section { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: clamp(18px, 3vw, 28px); margin: 24px 0; box-shadow: var(--shadow); }
+.cl-team .cl-field { display: grid; gap: 6px; margin: 0 0 16px; max-width: none; }
+.cl-team .cl-field input[type="text"], .cl-team .cl-field input[type="email"], .cl-team .cl-field select { min-height: 46px; padding: 10px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--paper); color: var(--ink); font: inherit; font-weight: 400; width: 100%; }
+.cl-team .cl-field input:focus, .cl-team .cl-field select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent); }
+.cl-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; } @media (max-width: 640px) { .cl-grid-2 { grid-template-columns: 1fr; } }
+.cl-team .cl-fieldset { border: 0; padding: 0; margin: 4px 0 18px; min-width: 0; }
+.cl-team legend { font-weight: 600; font-size: 14px; padding: 0; margin-bottom: 10px; }
+.cl-roles { display: grid; gap: 10px; }
+.cl-role { display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: start; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--paper); cursor: pointer; transition: border-color .15s, background .15s; }
+.cl-role:hover { border-color: var(--brand); } .cl-role.is-on { border-color: var(--brand); background: var(--brand-soft); }
+.cl-role input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--brand); }
+.cl-role strong { display: block; } .cl-role small { display: block; color: var(--ink-2); font-size: 13.5px; line-height: 1.4; margin-top: 2px; }
+.cl-check { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-weight: 400; } .cl-check input { width: 18px; height: 18px; accent-color: var(--brand); }
+.cl-team .cl-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 0; }
+.cl-code { display: block; width: 100%; padding: 10px 12px; margin-top: 6px; border-radius: 10px; background: var(--paper); border: 1px dashed var(--line); color: var(--ink); font: 13.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; user-select: all; }
+.cl-block { display: block; font-weight: 400; }
+.cl-team-table { overflow-x: auto; } .cl-team .cl-table th, .cl-team .cl-table td { padding: 12px 10px; vertical-align: top; border-bottom: 1px solid var(--line); }
+.cl-state { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--paper-2); color: var(--ink-2); }
+.cl-state-active { background: var(--good-bg); color: var(--good); } .cl-state-expired { background: var(--review-bg); color: var(--review); }
+
+.cl-profile { position: relative; }
+.cl-avatar-btn { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+.cl-avatar-btn:hover { background: var(--paper-2); }
+.cl-avatar { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--brand); color: #fff; font: 600 15px var(--sans); }
+.cl-avatar-lg { width: 64px; height: 64px; font-size: 28px; }
+.cl-menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 230px; z-index: 40; display: grid; padding: 8px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.cl-menu-head { display: grid; padding: 8px 10px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); } .cl-menu-head small { color: var(--ink-2); font-size: 12.5px; }
+.cl-menu-item { display: block; width: 100%; text-align: left; padding: 10px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; text-decoration: none; cursor: pointer; }
+.cl-menu-item:hover { background: var(--paper-2); }
+.cl-profile-head { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; } .cl-profile-head .cl-page-title { margin: 0; }
+.cl-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 20px 0; }
+.cl-facts > div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; } .cl-facts dt { font-size: 12.5px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; } .cl-facts dd { margin: 2px 0 0; font-weight: 600; word-break: break-word; }
+.cl-can { padding-left: 20px; display: grid; gap: 4px; }

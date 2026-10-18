@@ -69,6 +69,7 @@ class DecisionEnvelopeV1(BaseModel):
     reasons: list[Reason] = Field(default_factory=list, max_length=20)
     evidence: list[EvidenceItem] = Field(..., min_length=1, max_length=50)
     source_mapping: SourceMapping | None = None
+    portfolio: str | None = Field(default=None, min_length=1, max_length=64, description="Optional group label (branch, product, region) used to limit who can see the decision")
 
 
 def _id_secret() -> bytes:
@@ -197,12 +198,13 @@ def record_decision(
             """
             INSERT INTO decisions (
                 decision_id, application_id, decided_at, outcome, model_version, policy_version,
-                score, chain_length, chain_head, tenant_id, recording_mode, encrypted
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'recorded', %s)
+                score, chain_length, chain_head, tenant_id, recording_mode, encrypted, portfolio
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'recorded', %s, %s)
             """,
             (
                 dec_uuid, envelope.external_id, decided_at, envelope.outcome, envelope.model_version,
                 envelope.policy_version, envelope.score, chain_length, chain_head, tenant_id, protector is not None,
+                envelope.portfolio,
             ),
         )
         if protector is not None:

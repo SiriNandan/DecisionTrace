@@ -51,10 +51,12 @@ def who_am_i(principal: Principal = Depends(require_scope(None))) -> dict[str, A
             name = str(row[0])
     return {
         "role": principal.role,
+        "roles": [principal.role, *principal.extra_roles],
         "kind": "customer" if principal.is_customer else "staff",
         "tenant_id": principal.tenant_id,
         "tenant_name": name,
         "label": principal.label,
+        "email": principal.email,
         "scopes": sorted(principal.scopes),
         "decision_id": principal.decision_id,
         "expires_at": principal.expires_at.isoformat() if principal.expires_at else None,

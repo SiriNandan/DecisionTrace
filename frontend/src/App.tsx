@@ -27,6 +27,9 @@ import { navigate, readRoute, Route } from "./lib/router";
 import { applyTheme, markTourSeen, readActivity, readTheme, Theme, tourSeen, track } from "./lib/usage";
 import AboutPage from "./pages/AboutPage";
 import ConnectPage from "./pages/ConnectPage";
+import StaffHome from "./components/StaffHome";
+import TeamPage from "./pages/TeamPage";
+import ProfilePage from "./pages/ProfilePage";
 import HelpPage from "./pages/HelpPage";
 import InsightsPage from "./pages/InsightsPage";
 import LegalPage from "./pages/LegalPage";
@@ -355,7 +358,8 @@ export const App: React.FC = () => {
 
       <main id="main-content" className="cl-main" tabIndex={-1} ref={mainRef}>
         <ErrorBoundary>
-          {route.page === "home" && (
+          {route.page === "home" && me?.kind === "staff" && !me.scopes.includes("decisions:read") && <StaffHome me={me} />}
+          {route.page === "home" && !(me?.kind === "staff" && !me.scopes.includes("decisions:read")) && (
             <HomeView
               cases={cases}
               loading={loadingCases}
@@ -424,10 +428,12 @@ export const App: React.FC = () => {
             <InsightsPage cases={cases} loading={loadingCases} error={casesError} problem={casesProblem} activity={activity} onActivityReset={refreshActivity} />
           )}
           {route.page === "about" && <AboutPage />}
-          {(route.page === "connect" || route.page === "quality" || route.page === "signals" || route.page === "seals") &&
+          {route.page === "profile" && (me?.kind === "staff" ? <ProfilePage me={me} /> : <ServiceProblem kind="signin" what="page" offerSample={false} />)}
+          {(route.page === "connect" || route.page === "team" || route.page === "quality" || route.page === "signals" || route.page === "seals") &&
             (me?.kind === "staff" ? (
               <>
-                {route.page === "connect" && <ConnectPage />}
+                {route.page === "connect" && <ConnectPage me={me} />}
+                {route.page === "team" && (me.scopes.includes("team:manage") ? <TeamPage /> : <ServiceProblem kind="signin" what="page" offerSample={false} />)}
                 {route.page === "quality" && <QualityPage />}
                 {route.page === "signals" && <SignalsPage />}
                 {route.page === "seals" && <SealsPage />}
@@ -442,7 +448,7 @@ export const App: React.FC = () => {
         </ErrorBoundary>
       </main>
 
-      <SiteFooter onTour={() => setTourOpen(true)} staff={me?.kind === "staff"} customer={me?.kind === "customer"} />
+      <SiteFooter onTour={() => setTourOpen(true)} staff={me?.kind === "staff"} customer={me?.kind === "customer"} scopes={me?.kind === "staff" ? me.scopes : undefined} />
       {tourOpen && <WelcomeDialog onClose={closeTour} />}
     </div>
   );

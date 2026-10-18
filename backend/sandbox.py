@@ -21,7 +21,7 @@ from backend.tenants import create_tenant, issue_key
 from data.load_policies import get_db_url
 
 FIXTURE_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "envelopes"
-ROLES = ("lender_ingest", "lender_analyst", "auditor")
+ROLES = ("lender_ingest", "lender_analyst", "auditor", "lender_admin", "lender_support")
 
 REASONS = {
     "DTI_HIGH": "Debt is high compared with income.",

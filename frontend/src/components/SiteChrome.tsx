@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, Page } from "../lib/router";
 import { Theme } from "../lib/usage";
 import type { Me } from "../types";
@@ -11,6 +11,48 @@ const CUSTOMER_NAV: Array<[Page, string]> = [["about", "How it works"], ["help",
 const THEME_NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
 const THEME_LABEL: Record<Theme, string> = { system: "Auto", light: "Light", dark: "Dark" };
 const THEME_ICON: Record<Theme, string> = { system: "◐", light: "☀", dark: "☾" };
+
+/** First name for the avatar: from the person's name, else their role (the demo key has no person). */
+export function firstName(me: Me): string {
+  const n = me.label.trim();
+  const word = !n || n === "DT_API_KEY" ? (ROLE_LABEL[me.role] ?? "You") : n.split(/[\s,]+/)[0];
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+const roleText = (me: Me) => (me.roles?.length ? me.roles : [me.role]).map((r) => ROLE_LABEL[r] ?? r).join(" + ");
+
+const ProfileMenu: React.FC<{ me: Me; onSignOut?: () => void }> = ({ me, onSignOut }) => {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const name = firstName(me);
+  return (
+    <div className="cl-profile" ref={box}>
+      <button type="button" className="cl-avatar-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} data-testid="profile-button">
+        <span className="cl-avatar" aria-hidden="true">{name.charAt(0)}</span>
+        <span className="cl-avatar-name">{name}</span>
+        <span className="cl-sr">{me.kind === "sample" ? "Sample decisions" : me.kind === "customer" ? "Your decision" : `${me.tenant_name} · ${roleText(me)}`}</span>
+      </button>
+      {open && (
+        <div className="cl-menu" role="menu">
+          <p className="cl-menu-head"><strong>{name}</strong><small>{me.kind === "staff" ? `${me.tenant_name} · ${roleText(me)}` : "Your decision"}</small></p>
+          {me.kind === "staff" && (
+            <Link to={{ page: "profile" }} role="menuitem" className="cl-menu-item" onClick={() => setOpen(false)}>View profile</Link>
+          )}
+          <button type="button" role="menuitem" className="cl-menu-item" onClick={() => { setOpen(false); onSignOut?.(); }}>
+            {me.kind === "sample" ? "Leave samples" : "Sign out"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) => void; me?: Me | null; onSignOut?: () => void }> = ({ page, theme, onTheme, me = null, onSignOut }) => (
   <header className="cl-nav">
@@ -28,12 +70,7 @@ export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) =
     </nav>
     <div className="cl-who" data-testid="who">
       {me ? (
-        <>
-          <span className="cl-who-name" id="who-name">
-            {me.kind === "sample" ? "Sample decisions" : me.kind === "customer" ? "Your decision" : `${me.tenant_name} · ${ROLE_LABEL[me.role] ?? me.role}`}
-          </span>
-          <button type="button" className="cl-who-btn" onClick={onSignOut} aria-describedby="who-name">{me.kind === "sample" ? "Leave samples" : "Sign out"}</button>
-        </>
+        <ProfileMenu me={me} onSignOut={onSignOut} />
       ) : (
         <Link to={{ page: "signin" }} className="cl-who-btn" aria-current={page === "signin" ? "page" : undefined}>Sign in</Link>
       )}
@@ -44,7 +81,12 @@ export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) =
   </header>
 );
 
-export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; customer?: boolean }> = ({ onTour, staff = false, customer = false }) => (
+const LENDER_LINKS: Array<[Page, string, string[]]> = [
+  ["connect", "Connect your data", ["mappings:read"]], ["team", "Your team", ["team:manage"]], ["quality", "Data checks", ["quality:read"]],
+  ["signals", "Risk signals", ["signals:read"]], ["seals", "Record seals", ["seals:read"]],
+];
+
+export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; customer?: boolean; scopes?: string[] }> = ({ onTour, staff = false, customer = false, scopes }) => (
   <footer className="cl-footer">
     <div className="cl-footer-grid">
       <div>
@@ -57,8 +99,7 @@ export const SiteFooter: React.FC<{ onTour: () => void; staff?: boolean; custome
       )}
       {staff && (
         <nav aria-label="For lenders"><h2 className="cl-footer-h">For lenders</h2>
-          <Link to={{ page: "connect" }}>Connect your data</Link><Link to={{ page: "quality" }}>Data checks</Link>
-          <Link to={{ page: "signals" }}>Risk signals</Link><Link to={{ page: "seals" }}>Record seals</Link></nav>
+          {LENDER_LINKS.filter(([, , needs]) => !scopes || needs.every((n) => scopes.includes(n))).map(([p, label]) => <Link key={p} to={{ page: p }}>{label}</Link>)}</nav>
       )}
       <nav aria-label="Learn"><h2 className="cl-footer-h">Learn</h2>
         <Link to={{ page: "about" }}>How it works</Link><Link to={{ page: "help" }}>Help &amp; FAQ</Link>

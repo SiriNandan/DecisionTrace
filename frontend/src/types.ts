@@ -250,10 +250,29 @@ export interface Me {
   tenant_id: string;
   tenant_name: string;
   label: string;
+  email?: string;
+  roles?: string[];
   scopes: string[];
   decision_id: string | null;
   expires_at: string | null;
 }
+
+export interface TeamRole { role: string; name: string; description: string; can_limit_to_portfolios: boolean }
+export interface TeamMember {
+  credential_id: number;
+  label: string;
+  role: string;
+  portfolios: string[] | null;
+  expires_at: string | null;
+  withdrawn_at: string | null;
+  created_at: string;
+  email: string | null;
+  roles: string[];
+  state: "active" | "expired" | "withdrawn";
+}
+export interface TeamState { members: TeamMember[]; you: number | null; portfolios: Array<{ name: string; decisions: number }>; roles: TeamRole[] }
+export interface NewTeamKey { credential_id: number; key: string; role: string; roles: string[]; label: string; portfolios: string[] | null; expires_at: string | null; email: string; email_status: "sent" | "not_configured" | "failed" }
+export interface MappingListItem { mapping_id: number; name: string; version: number; status: "proposed" | "approved" | "rejected"; proposed_by: string; gaps: string[] }
 
 export interface ServiceHealth {
   status: "ok" | "needs_upgrade" | "database_down" | "unreachable" | "unknown";

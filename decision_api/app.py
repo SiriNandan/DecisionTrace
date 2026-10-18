@@ -30,6 +30,7 @@ from backend.signals import signals_for_decision
 from decision_api.access_api import router as access_router
 from decision_api.anchors_api import router as anchors_router
 from decision_api.consent_api import router as consent_router
+from decision_api.team_api import router as team_router
 from decision_api.mappings_api import router as mappings_router
 from decision_api.signals_api import router as signals_router
 from decision_api.quality_api import router as quality_router
@@ -112,6 +113,7 @@ def create_app() -> FastAPI:
     application.include_router(signals_router)
     application.include_router(anchors_router)
     application.include_router(consent_router)
+    application.include_router(team_router)
 
     @application.post("/decide")
     def post_decide(
@@ -239,6 +241,7 @@ def create_app() -> FastAPI:
                 rows, next_cursor = list_decisions_page(
                     conn, applicant_id=applicant_id, limit=limit, tenant_id=principal.tenant_id,
                     only_decision_id=principal.decision_id, cursor=cursor,
+                    portfolios=list(principal.portfolios) if principal.portfolios is not None else None,
                 )
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc

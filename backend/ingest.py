@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 import psycopg
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.integrity import build_chain, canonical_json, payload_sha256
 
@@ -70,6 +70,14 @@ class DecisionEnvelopeV1(BaseModel):
     evidence: list[EvidenceItem] = Field(..., min_length=1, max_length=50)
     source_mapping: SourceMapping | None = None
     portfolio: str | None = Field(default=None, min_length=1, max_length=64, description="Optional group label (branch, product, region) used to limit who can see the decision")
+
+    @model_validator(mode="after")
+    def _unique_evidence_refs(self) -> "DecisionEnvelopeV1":
+        refs = [e.evidence_ref for e in self.evidence]
+        dupes = sorted({r for r in refs if refs.count(r) > 1})
+        if dupes:
+            raise ValueError(f"Each piece of evidence needs its own evidence_ref; repeated: {', '.join(dupes)}.")
+        return self
 
 
 def _id_secret() -> bytes:
@@ -176,47 +184,42 @@ def record_decision(
     items = [protector.protect_item(i) for i in plain_items] if protector is not None else plain_items
     snapshots, chain_length, chain_head = build_chain(dec_uuid, items)
 
-    with conn.transaction():
+    def replay() -> tuple[dict[str, Any], bool] | None:
         existing = conn.execute(
             "SELECT chain_length, chain_head, decided_at, encrypted FROM decisions WHERE decision_id = %s AND tenant_id = %s",
             (dec_uuid, tenant_id),
         ).fetchone()
-        if existing is not None:
-            if not _same_content(conn, str(dec_uuid), bool(existing[3]), plain_items, snapshots):
-                raise FileExistsError("That Idempotency-Key was already used with different content.")
-            return (
-                {
-                    "decision_id": str(dec_uuid),
-                    "chain_length": int(existing[0]),
-                    "chain_head": str(existing[1]),
-                    "decided_at": existing[2].isoformat(),
-                },
-                True,
-            )
-
-        conn.execute(
-            """
-            INSERT INTO decisions (
-                decision_id, application_id, decided_at, outcome, model_version, policy_version,
-                score, chain_length, chain_head, tenant_id, recording_mode, encrypted, portfolio
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'recorded', %s, %s)
-            """,
-            (
-                dec_uuid, envelope.external_id, decided_at, envelope.outcome, envelope.model_version,
-                envelope.policy_version, envelope.score, chain_length, chain_head, tenant_id, protector is not None,
-                envelope.portfolio,
-            ),
+        if existing is None:
+            return None
+        if not _same_content(conn, str(dec_uuid), bool(existing[3]), plain_items, snapshots):
+            raise FileExistsError("That Idempotency-Key was already used with different content.")
+        return (
+            {
+                "decision_id": str(dec_uuid),
+                "chain_length": int(existing[0]),
+                "chain_head": str(existing[1]),
+                "decided_at": existing[2].isoformat(),
+            },
+            True,
         )
-        if protector is not None:
-            protector.store_wrap(conn)
-        with conn.cursor() as cur:
-            for snap in snapshots:
-                _insert_snapshot_row(cur, snap)
-                cur.execute(
-                    "INSERT INTO evidence_status (decision_id, evidence_ref, status, changed_at) "
-                    "VALUES (%s, %s, 'available', %s)",
-                    (dec_uuid, snap["evidence_ref"], captured_at),
-                )
+
+    try:
+        with conn.transaction():
+            already = replay()
+            if already is not None:
+                return already
+            _store(
+                conn, dec_uuid=dec_uuid, tenant_id=tenant_id, envelope=envelope, decided_at=decided_at,
+                captured_at=captured_at, chain_length=chain_length, chain_head=chain_head,
+                snapshots=snapshots, protector=protector, insert_snapshot_row=_insert_snapshot_row,
+            )
+    except psycopg.errors.UniqueViolation:
+        # A concurrent request with the same Idempotency-Key committed first: this one is a replay, not a failure.
+        with conn.transaction():
+            already = replay()
+        if already is None:
+            raise
+        return already
 
     return (
         {
@@ -227,3 +230,43 @@ def record_decision(
         },
         False,
     )
+
+
+def _store(
+    conn: psycopg.Connection[Any],
+    *,
+    dec_uuid: uuid.UUID,
+    tenant_id: str,
+    envelope: DecisionEnvelopeV1,
+    decided_at: datetime,
+    captured_at: datetime,
+    chain_length: int,
+    chain_head: str,
+    snapshots: list[dict[str, Any]],
+    protector: Any,
+    insert_snapshot_row: Any,
+) -> None:
+    """Write the decision row, its snapshots and evidence status (the caller owns the transaction)."""
+    conn.execute(
+        """
+        INSERT INTO decisions (
+            decision_id, application_id, decided_at, outcome, model_version, policy_version,
+            score, chain_length, chain_head, tenant_id, recording_mode, encrypted, portfolio
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'recorded', %s, %s)
+        """,
+        (
+            dec_uuid, envelope.external_id, decided_at, envelope.outcome, envelope.model_version,
+            envelope.policy_version, envelope.score, chain_length, chain_head, tenant_id, protector is not None,
+            envelope.portfolio,
+        ),
+    )
+    if protector is not None:
+        protector.store_wrap(conn)
+    with conn.cursor() as cur:
+        for snap in snapshots:
+            insert_snapshot_row(cur, snap)
+            cur.execute(
+                "INSERT INTO evidence_status (decision_id, evidence_ref, status, changed_at) "
+                "VALUES (%s, %s, 'available', %s)",
+                (dec_uuid, snap["evidence_ref"], captured_at),
+            )

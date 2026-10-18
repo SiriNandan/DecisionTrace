@@ -237,6 +237,12 @@ def import_file(req: ImportRequest, principal: Principal = Depends(require_scope
                 results.append({"row": i, "status": "rejected", "external_id": env.external_id, "problems": [str(exc)]})
                 tally["rejected"] += 1
                 continue
+            except Exception:  # one bad row must not lose the rows already saved (they still need their anchors below)
+                logger.exception("Import row %d (%s) could not be recorded", i, env.external_id)
+                results.append({"row": i, "status": "rejected", "external_id": env.external_id,
+                                "problems": ["This row could not be recorded because of a server problem. Try it again on its own."]})
+                tally["rejected"] += 1
+                continue
             key = "replayed" if replayed else "created"
             if not replayed:
                 new_records.append(out)

@@ -1,8 +1,8 @@
 import React from "react";
 
-export type Page = "home" | "decision" | "about" | "help" | "insights" | "connect" | "team" | "profile" | "quality" | "signals" | "seals" | "signin" | "privacy" | "terms" | "accessibility" | "notfound";
+export type Page = "home" | "decision" | "about" | "help" | "insights" | "connect" | "team" | "profile" | "quality" | "signals" | "seals" | "customers" | "customer" | "signin" | "privacy" | "terms" | "accessibility" | "notfound";
 
-const PAGES = new Set(["about", "help", "insights", "connect", "team", "profile", "quality", "signals", "seals", "signin", "privacy", "terms", "accessibility"]);
+const PAGES = new Set(["about", "help", "insights", "connect", "team", "profile", "quality", "signals", "seals", "customers", "customer", "signin", "privacy", "terms", "accessibility"]);
 
 export interface Route {
   page: Page;
@@ -15,11 +15,12 @@ export function readRoute(search = window.location.search): Route {
   if (d) return { page: "decision", id: d };
   const p = q.get("p");
   if (!p) return { page: "home", id: null };
+  if (p === "customer") return { page: "customer", id: q.get("c") };
   return PAGES.has(p) ? { page: p as Page, id: null } : { page: "notfound", id: null };
 }
 
 export const hrefFor = (r: { page: Page; id?: string | null }): string =>
-  r.page === "home" ? window.location.pathname : r.page === "decision" ? `?d=${encodeURIComponent(r.id ?? "")}` : `?p=${r.page}`;
+  r.page === "home" ? window.location.pathname : r.page === "decision" ? `?d=${encodeURIComponent(r.id ?? "")}` : r.page === "customer" ? `?p=customer&c=${encodeURIComponent(r.id ?? "")}` : `?p=${r.page}`;
 
 export function navigate(to: { page: Page; id?: string | null }): void {
   window.history.pushState({}, "", hrefFor(to));

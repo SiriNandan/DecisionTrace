@@ -341,3 +341,21 @@ h1:focus { outline: none; }
 .cl-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 20px 0; }
 .cl-facts > div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; } .cl-facts dt { font-size: 12.5px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; } .cl-facts dd { margin: 2px 0 0; font-weight: 600; word-break: break-word; }
 .cl-can { padding-left: 20px; display: grid; gap: 4px; }
+
+/* customer-wise view */
+.cl-cust-search { margin-left: auto; min-width: 220px; }
+.cl-cust-search input { min-height: 38px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; width: 100%; }
+.cl-strip { display: inline-flex; flex-wrap: wrap; gap: 3px; vertical-align: middle; }
+.cl-dot { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+.cl-dot-approve { background: var(--good-bg); color: var(--good); } .cl-dot-decline { background: var(--bad-bg); color: var(--bad); } .cl-dot-refer { background: var(--review-bg); color: var(--review); }
+.cl-cust-line { margin: 8px 0 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cl-cust-flags { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; }
+.cl-tag { display: inline-block; font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink-2); }
+.cl-tag-high { background: var(--bad-bg); color: var(--bad); border-color: transparent; } .cl-tag-warning { background: var(--review-bg); color: var(--review); border-color: transparent; }
+.cl-timeline { list-style: none; margin: 12px 0 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: grid; gap: 10px; }
+.cl-timeline-item { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.cl-timeline-when { font-weight: 600; min-width: 170px; }
+
+/* decisions pager */
+.cl-pager { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin: 22px 0 6px; }
+.cl-pager-gap { color: var(--ink-2); padding: 0 2px; }

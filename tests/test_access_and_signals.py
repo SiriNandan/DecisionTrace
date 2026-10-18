@@ -637,3 +637,24 @@ def test_override_actor_role_cannot_be_spoofed(client: TestClient, lenders: list
         assert r.status_code == 200 and r.json()["actor_role"] == "lender_analyst", claimed
     # omitting the field works too
     assert client.post("/overrides", json=body, headers=analyst).json()["actor_role"] == "lender_analyst"
+
+
+def test_customer_patterns_decline_streak_stacking_and_walk_down():
+    t0 = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    # nine declines then an approval for the same customer reference
+    streak = [view(i, "cust-x", "DECLINE", t0 + timedelta(days=3 * i), 0.7, {"income_annual": 40000, "requested_amount": 9000}) for i in range(9)]
+    streak.append(view(9, "cust-x", "APPROVE", t0 + timedelta(days=28), 0.2, {"income_annual": 40000, "requested_amount": 9000}))
+    kinds = {s["signal_type"]: s for s in decision_signals(streak)}
+    assert kinds["decline_streak_then_approval"]["severity"] == "high"
+    assert kinds["decline_streak_then_approval"]["details"]["declines"] == 9
+    # three approvals inside 30 days
+    stack = [view(20 + i, "cust-y", "APPROVE", t0 + timedelta(days=4 * i), 0.1, {"income_annual": 60000, "requested_amount": 10000 + i}) for i in range(3)]
+    assert any(s["signal_type"] == "loan_stacking" for s in decision_signals(stack))
+    # amounts walked down after declines
+    walk = [view(30, "cust-z", "DECLINE", t0, 0.6, {"income_annual": 30000, "requested_amount": 40000}),
+            view(31, "cust-z", "DECLINE", t0 + timedelta(days=2), 0.6, {"income_annual": 30000, "requested_amount": 30000}),
+            view(32, "cust-z", "APPROVE", t0 + timedelta(days=4), 0.2, {"income_annual": 30000, "requested_amount": 14000})]
+    assert any(s["signal_type"] == "amount_walk_down" for s in decision_signals(walk))
+    # an ordinary decline followed, months later, by an approval raises none of these
+    calm = [view(40, "cust-q", "DECLINE", t0, 0.6), view(41, "cust-q", "APPROVE", t0 + timedelta(days=200), 0.2)]
+    assert not {"decline_streak_then_approval", "loan_stacking", "amount_walk_down"} & {s["signal_type"] for s in decision_signals(calm)}

@@ -7,7 +7,7 @@ import OutcomePill from "./OutcomePill";
 
 type Filter = "ALL" | "APPROVE" | "DECLINE" | "REFER" | "REVIEWED";
 
-const PAGE = 12;
+const PAGE = 15;
 
 const FILTERS: Array<{ key: Filter; label: string }> = [
   { key: "ALL", label: "All" },
@@ -37,7 +37,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
   const [sort, setSort] = useState<"new" | "risk-high" | "risk-low">("new");
-  const [limit, setLimit] = useState(PAGE);
+  const [page, setPage] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -89,6 +89,11 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
     ].filter(Boolean) as Array<{ id: string; label: string }>;
   }, [cases]);
 
+  const pages = Math.max(1, Math.ceil(sorted.length / PAGE));
+  const cur = Math.min(page, pages - 1);
+  const from = cur * PAGE;
+  const to = Math.min(from + PAGE, sorted.length);
+
   return (
     <div className="cl-home">
       <section className="cl-hero" aria-labelledby="hero-title">
@@ -117,7 +122,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
             className="cl-search-input"
             placeholder="Search, e.g. APP-0011"
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setLimit(PAGE); }}
+            onChange={(e) => { setQuery(e.target.value); setPage(0); }}
             onBlur={() => query.trim() && onSearch?.()}
             autoComplete="off"
           />
@@ -169,7 +174,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
                 type="button"
                 className={`cl-chip ${filter === f.key ? "is-on" : ""}`}
                 aria-pressed={filter === f.key}
-                onClick={() => { setFilter(f.key); setLimit(PAGE); }}
+                onClick={() => { setFilter(f.key); setPage(0); }}
               >
                 {f.label}
               </button>
@@ -178,7 +183,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
         </div>
         <div className="cl-toolbar">
           <p className="cl-muted" role="status" aria-live="polite">
-            {loading ? "Loading…" : `Showing ${Math.min(limit, sorted.length)} of ${sorted.length} decision${sorted.length === 1 ? "" : "s"}`}
+            {loading ? "Loading…" : `Showing ${sorted.length === 0 ? 0 : from + 1}–${to} of ${sorted.length} decision${sorted.length === 1 ? "" : "s"}`}
             {!loading && hasMore && " loaded so far. There are older ones."}
           </p>
           <label className="cl-sort">
@@ -219,7 +224,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
         )}
 
         <ul className="cl-grid" data-testid="case-list-items">
-          {sorted.slice(0, limit).map((d) => {
+          {sorted.slice(from, to).map((d) => {
             const c = outcomeCopy(d.effective_outcome);
             const changed = d.effective_outcome !== d.initial_outcome;
             return (
@@ -246,14 +251,20 @@ export const HomeView: React.FC<HomeViewProps> = ({ cases, loading, error, signI
             );
           })}
         </ul>
-        {sorted.length > limit && (
-          <div className="cl-more">
-            <button type="button" className="cl-btn cl-btn-ghost" onClick={() => setLimit((n) => n + PAGE)}>
-              Show {Math.min(PAGE, sorted.length - limit)} more
-            </button>
-          </div>
+        {pages > 1 && (
+          <nav className="cl-pager" aria-label="Pages of decisions" data-testid="pager">
+            <button type="button" className="cl-btn cl-btn-ghost" disabled={cur === 0} onClick={() => setPage(cur - 1)}>← Previous</button>
+            {Array.from({ length: pages }, (_, i) => i).filter((i) => i === 0 || i === pages - 1 || Math.abs(i - cur) <= 1).map((i, idx, arr) => (
+              <React.Fragment key={i}>
+                {idx > 0 && i - arr[idx - 1] > 1 && <span className="cl-pager-gap" aria-hidden="true">…</span>}
+                <button type="button" className={`cl-chip ${i === cur ? "is-on" : ""}`} aria-current={i === cur ? "page" : undefined}
+                  aria-label={`Page ${i + 1} of ${pages}`} onClick={() => setPage(i)}>{i + 1}</button>
+              </React.Fragment>
+            ))}
+            <button type="button" className="cl-btn cl-btn-ghost" disabled={cur === pages - 1} onClick={() => setPage(cur + 1)}>Next →</button>
+          </nav>
         )}
-        {sorted.length <= limit && hasMore && onLoadMore && !loading && !error && (
+        {cur === pages - 1 && hasMore && onLoadMore && !loading && !error && (
           <div className="cl-more">
             <button type="button" className="cl-btn cl-btn-ghost" onClick={onLoadMore} disabled={loadingMore} data-testid="load-more">
               {loadingMore ? "Loading…" : moreError ? "Try again" : "Load older decisions"}

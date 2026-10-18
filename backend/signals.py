@@ -20,6 +20,12 @@ from backend.quality import DATA_TYPES, DecisionView, canon, load_views, num
 VELOCITY_DAYS = 7
 VELOCITY_MIN = 3
 FLIP_DAYS = 30
+STREAK_MIN = 3
+STREAK_DAYS = 90
+STACK_DAYS = 30
+STACK_MIN = 3
+WALK_DAYS = 14
+WALK_RATIO = 0.7
 SHARED_MIN_SUBJECTS = 3
 DRIFT_RECENT_DAYS = 7
 DRIFT_BASELINE_DAYS = 90
@@ -38,6 +44,12 @@ def signal_facts(kind: str, details: dict[str, Any]) -> dict[str, Any] | None:
             return {"decisions_in_window": int(d["count"]), "window_days": VELOCITY_DAYS, "rule_minimum": VELOCITY_MIN}
         if kind == "outcome_flip":
             return {"window_days": FLIP_DAYS}
+        if kind == "decline_streak_then_approval":
+            return {"declines_before": int(d["declines"]), "window_days": STREAK_DAYS, "rule_minimum": STREAK_MIN}
+        if kind == "loan_stacking":
+            return {"approvals_in_window": int(d["approvals"]), "window_days": STACK_DAYS, "rule_minimum": STACK_MIN}
+        if kind == "amount_walk_down":
+            return {"declined_amount": float(d["declined_amount"]), "approved_amount": float(d["approved_amount"]), "window_days": WALK_DAYS}
         if kind == "shared_details":
             return {"distinct_customer_references": int(d["distinct_references"]), "rule_minimum": SHARED_MIN_SUBJECTS}
         if kind == "decline_rate_shift":
@@ -64,6 +76,15 @@ def why_template(kind: str, details: dict[str, Any]) -> str | None:
                 f"{f['window_days']} days, and it looks for {f['rule_minimum']} or more.")
     if kind == "outcome_flip":
         return f"This rule fired because a decline was followed by an approval for the same customer reference within {f['window_days']} days."
+    if kind == "decline_streak_then_approval":
+        return (f"This rule fired because {f['declines_before']} declines in a row (within {f['window_days']} days) were followed by an approval "
+                f"for the same customer reference, and it looks for {f['rule_minimum']} or more.")
+    if kind == "loan_stacking":
+        return (f"This rule fired because {f['approvals_in_window']} loans were approved for the same customer reference within "
+                f"{f['window_days']} days, and it looks for {f['rule_minimum']} or more.")
+    if kind == "amount_walk_down":
+        return (f"This rule fired because an approval for {f['approved_amount']:,.0f} followed declines of up to {f['declined_amount']:,.0f} "
+                f"for the same customer reference within {f['window_days']} days.")
     if kind == "shared_details":
         return (f"This rule fired because the same income, loan amount and credit score appear for {f['distinct_customer_references']} "
                 f"different customer references, and it looks for {f['rule_minimum']} or more.")
@@ -136,6 +157,16 @@ def subject_of(view: DecisionView) -> str | None:
     return None
 
 
+def amount_of(view: DecisionView) -> float | None:
+    for item in view.items:
+        if item.evidence_type not in DATA_TYPES:
+            continue
+        for key, raw in item.payload.items():
+            if canon(key) == "requested_amount" and num(raw) is not None:
+                return float(num(raw))
+    return None
+
+
 def fingerprint(view: DecisionView) -> tuple[float, float, float] | None:
     got: dict[str, float] = {}
     for item in view.items:
@@ -176,6 +207,34 @@ def decision_signals(views: list[DecisionView]) -> list[dict[str, Any]]:
                 out.append(_sig(v.decision_id, "decision", "outcome_flip", "warning",
                                 f"An approval soon after a decline for the same customer reference (within {FLIP_DAYS} days). Worth a look.",
                                 v.decision_id))
+
+    for subject, group in by_subject.items():
+        group.sort(key=lambda v: v.decided_at)
+        for i, v in enumerate(group):
+            if v.outcome != "APPROVE":
+                continue
+            streak = 0  # declines immediately before this approval, within the window
+            for g in reversed(group[:i]):
+                if g.outcome != "DECLINE" or g.decided_at < v.decided_at - timedelta(days=STREAK_DAYS):
+                    break
+                streak += 1
+            if streak >= STREAK_MIN:
+                out.append(_sig(v.decision_id, "decision", "decline_streak_then_approval", "high" if streak >= 5 else "warning",
+                                f"This approval came after {streak} declines in a row for the same customer reference. A person may want to confirm "
+                                "what changed between the last decline and this approval.", v.decision_id, declines=streak))
+            stack = [g for g in group[: i + 1] if g.outcome == "APPROVE" and g.decided_at >= v.decided_at - timedelta(days=STACK_DAYS)]
+            if len(stack) >= STACK_MIN:
+                out.append(_sig(v.decision_id, "decision", "loan_stacking", "high" if len(stack) >= 4 else "warning",
+                                f"{len(stack)} loans were approved for this customer reference within {STACK_DAYS} days, which may mean borrowing "
+                                "is being stacked before the first loan shows up elsewhere.", v.decision_id, approvals=len(stack)))
+            near = [g for g in group[:i] if g.outcome == "DECLINE" and g.decided_at >= v.decided_at - timedelta(days=WALK_DAYS)]
+            amts = [a for a in (amount_of(g) for g in near) if a]
+            mine = amount_of(v)
+            if len(near) >= 2 and mine and amts and mine <= max(amts) * WALK_RATIO:
+                out.append(_sig(v.decision_id, "decision", "amount_walk_down", "warning",
+                                "The requested amount was lowered after repeated declines until one was approved. That can be a customer finding "
+                                "their limit, or someone testing where the lender's threshold is.", v.decision_id,
+                                declined_amount=max(amts), approved_amount=mine))
 
     for fp, group in by_print.items():
         refs = {subject_of(v) for v in group}

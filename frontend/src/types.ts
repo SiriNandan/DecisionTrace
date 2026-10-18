@@ -355,3 +355,42 @@ export interface DecisionsPage {
   items: DecisionSummaryItem[];
   next: string | null;
 }
+
+
+/* ---- Customer-wise view ---- */
+
+export interface CustomerFlag { signal_type: string; severity: "info" | "warning" | "high"; count: number }
+
+export interface CustomerRow {
+  subject_ref: string;
+  applications: number;
+  approved: number;
+  declined: number;
+  referred: number;
+  first_at: string;
+  last_at: string;
+  last_outcome: string;
+  history: string[];
+  flags: CustomerFlag[];
+  flag_level: "info" | "warning" | "high" | null;
+}
+
+export interface CustomerTimelineItem {
+  decision_id: string;
+  decided_at: string;
+  outcome: string;
+  score: number | null;
+  requested_amount: number | null;
+  flags: string[];
+  reasons: string[];
+}
+
+export interface CustomerDetail {
+  subject_ref: string;
+  applications: number;
+  approved: number;
+  declined: number;
+  referred: number;
+  timeline: CustomerTimelineItem[];
+  signals: Array<{ decision_id: string; signal_type: string; severity: "info" | "warning" | "high"; message: string }>;
+}

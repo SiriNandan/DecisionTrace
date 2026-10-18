@@ -479,6 +479,12 @@ class GeminiAPIBackend(LLMBackend):
         self.api_key = _resolve_gemini_api_key(api_key)
         self.model_name = model_name or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
+    def new_client(self) -> genai.Client:
+        """A Gen AI client. GEMINI_USE_VERTEX=1 sends the key to Vertex AI (express-mode keys), otherwise the Gemini API."""
+        if os.environ.get("GEMINI_USE_VERTEX", "").strip().lower() in ("1", "true", "yes"):
+            return genai.Client(vertexai=True, api_key=self.api_key)
+        return genai.Client(api_key=self.api_key)
+
     def _generate_content_with_fallback(
         self,
         client: genai.Client,
@@ -522,7 +528,7 @@ class GeminiAPIBackend(LLMBackend):
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY is not configured in environment")
 
-        client = genai.Client(api_key=self.api_key)
+        client = self.new_client()
 
         # Define bound tool functions with docstrings for Google Gen AI SDK function declarations
         def get_decision(decision_id: str) -> dict[str, Any]:
@@ -697,7 +703,7 @@ class GeminiAPIBackend(LLMBackend):
             "claims": [c for g in report.get("reasons", []) for c in g.get("claims", [])],
             "rule_checks": report.get("rule_checks", []),
         }
-        client = genai.Client(api_key=self.api_key)
+        client = self.new_client()
         resp = self._generate_content_with_fallback(
             client=client,
             contents=[types.Content(role="user", parts=[types.Part.from_text(
@@ -710,7 +716,7 @@ class GeminiAPIBackend(LLMBackend):
     def generate_signal_why(self, kind: str, facts: dict[str, Any]) -> str | None:
         if not self.api_key:
             return None
-        client = genai.Client(api_key=self.api_key)
+        client = self.new_client()
         resp = self._generate_content_with_fallback(
             client=client,
             contents=[types.Content(role="user", parts=[types.Part.from_text(

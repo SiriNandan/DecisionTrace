@@ -22,6 +22,8 @@ import {
   QualityRunResult,
   ServiceHealth,
   SignalItem,
+  CustomerDetail,
+  CustomerRow,
   SealBatch,
   SealCheck,
   SealProof,
@@ -356,4 +358,13 @@ export async function fetchConsents(decisionId: string): Promise<ConsentState> {
 
 export async function setAiSummaryChoice(decisionId: string, granted: boolean): Promise<ConsentState> {
   return postJson<ConsentState>(`/v1/decisions/${encodeURIComponent(decisionId)}/consents/ai_summary`, { granted });
+}
+
+
+export async function fetchCustomers(): Promise<CustomerRow[]> {
+  return getJson<CustomerRow[]>("/v1/customers");
+}
+
+export async function fetchCustomer(subjectRef: string): Promise<CustomerDetail> {
+  return getJson<CustomerDetail>(`/v1/customers/${encodeURIComponent(subjectRef)}`);
 }

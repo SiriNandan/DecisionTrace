@@ -98,7 +98,7 @@
 <text x="1304" y="650" font-size="13.5" fill="#334155">Folder copied to a locked bucket the database</text>
 <text x="1304" y="669" font-size="13.5" fill="#334155">admin can't rewrite; timestamp service is next</text>
 <rect x="1290" y="710" width="370" height="70" rx="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.6"/>
-<text x="1304" y="736" font-size="16" font-weight="700" fill="#0f172a">AI model (optional, Gemini; off in the demo)</text>
+<text x="1304" y="736" font-size="16" font-weight="700" fill="#0f172a">AI model (optional, Gemini; on in the demo)</text>
 <text x="1304" y="760" font-size="13.5" fill="#334155">Gets only the explanation's own facts,</text>
 <text x="1304" y="779" font-size="13.5" fill="#334155">never names or contact details</text>
 

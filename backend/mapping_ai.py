@@ -480,9 +480,7 @@ def default_llm() -> LLMCall | None:
         return None
 
     def call(prompt: str) -> str:
-        from google import genai
-
-        client = genai.Client(api_key=backend.api_key)
+        client = backend.new_client()
         resp = backend._generate_content_with_fallback(
             client, [prompt], types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0)
         )

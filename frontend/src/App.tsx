@@ -36,6 +36,8 @@ import LegalPage from "./pages/LegalPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import SealsPage from "./pages/SealsPage";
 import SignalsPage from "./pages/SignalsPage";
+import CustomersPage from "./pages/CustomersPage";
+import CustomerPage from "./pages/CustomerPage";
 import SignInPage from "./pages/SignInPage";
 import QualityPage from "./pages/QualityPage";
 import {
@@ -89,6 +91,8 @@ const TITLES: Record<string, string> = {
   connect: "Connect your data",
   quality: "Data checks",
   signals: "Risk signals",
+  customers: "Customers",
+  customer: "Customer",
   seals: "Record seals",
   privacy: "Privacy",
   terms: "Terms of use",
@@ -429,13 +433,15 @@ export const App: React.FC = () => {
           )}
           {route.page === "about" && <AboutPage />}
           {route.page === "profile" && (me?.kind === "staff" ? <ProfilePage me={me} /> : <ServiceProblem kind="signin" what="page" offerSample={false} />)}
-          {(route.page === "connect" || route.page === "team" || route.page === "quality" || route.page === "signals" || route.page === "seals") &&
+          {(route.page === "connect" || route.page === "team" || route.page === "quality" || route.page === "signals" || route.page === "seals" || route.page === "customers" || route.page === "customer") &&
             (me?.kind === "staff" ? (
               <>
                 {route.page === "connect" && <ConnectPage me={me} />}
                 {route.page === "team" && (me.scopes.includes("team:manage") ? <TeamPage /> : <ServiceProblem kind="signin" what="page" offerSample={false} />)}
                 {route.page === "quality" && <QualityPage />}
                 {route.page === "signals" && <SignalsPage />}
+                {route.page === "customers" && (me.scopes.includes("signals:read") ? <CustomersPage /> : <ServiceProblem kind="signin" what="page" offerSample={false} />)}
+                {route.page === "customer" && (me.scopes.includes("signals:read") ? <CustomerPage subjectRef={route.id} /> : <ServiceProblem kind="signin" what="page" offerSample={false} />)}
                 {route.page === "seals" && <SealsPage />}
               </>
             ) : meReady ? (

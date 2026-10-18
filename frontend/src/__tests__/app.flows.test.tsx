@@ -94,7 +94,10 @@ describe("first visit and trouble", () => {
     render(<App />);
     await waitFor(() => expect(screen.getByTestId("who")).toHaveTextContent("Acme Bank · Analyst"));
     expect(seen.find((s) => s.url.includes("/decisions?"))!.headers["X-API-Key"]).toBe("dtk_good");
-    expect(screen.getByRole("link", { name: "Connect your data" })).toBeInTheDocument();
+    // "Connect your data" and "Customers" are in the main navigation as well as the footer
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Connect your data" })).toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Main" })).getByRole("link", { name: "Customers" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Connect your data" }).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("link", { name: "Risk signals" })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("profile-button"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));

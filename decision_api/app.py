@@ -34,6 +34,7 @@ from decision_api.consent_api import router as consent_router
 from decision_api.team_api import router as team_router
 from decision_api.mappings_api import router as mappings_router
 from decision_api.signals_api import router as signals_router
+from decision_api.customers_api import router as customers_router
 from decision_api.quality_api import router as quality_router
 from recon_agent.router import evict_decision, reset_state as reset_reconstruct_cache, router as reconstruct_router
 
@@ -116,6 +117,7 @@ def create_app() -> FastAPI:
     application.include_router(quality_router)
     application.include_router(access_router)
     application.include_router(signals_router)
+    application.include_router(customers_router)
     application.include_router(anchors_router)
     application.include_router(consent_router)
     application.include_router(team_router)

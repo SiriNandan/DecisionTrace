@@ -6,6 +6,13 @@ import { ROLE_LABEL } from "../pages/SignInPage";
 
 const NAV: Array<[Page, string]> = [["home", "Decisions"], ["insights", "Insights"], ["about", "How it works"], ["help", "Help"]];
 // A customer opening their own link sees only their decision and the help pages.
+const staffNav = (scopes: string[]): Array<[Page, string]> => [
+  ...NAV.slice(0, 2),
+  ...(scopes.includes("signals:read") ? ([["customers", "Customers"]] as Array<[Page, string]>) : []),
+  ...(scopes.includes("mappings:read") ? ([["connect", "Connect your data"]] as Array<[Page, string]>) : []),
+  ...NAV.slice(2),
+];
+
 const CUSTOMER_NAV: Array<[Page, string]> = [["about", "How it works"], ["help", "Help"]];
 
 const THEME_NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
@@ -64,7 +71,7 @@ export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) =
       <span>Clearly</span>
     </Link>
     <nav className="cl-nav-links" aria-label="Main">
-      {(me?.kind === "customer" ? CUSTOMER_NAV : NAV).map(([p, label]) => (
+      {(me?.kind === "customer" ? CUSTOMER_NAV : me?.kind === "staff" ? staffNav(me.scopes ?? []) : NAV).map(([p, label]) => (
         <Link key={p} to={{ page: p }} aria-current={(page === p || (p === "home" && page === "decision")) ? "page" : undefined}>{label}</Link>
       ))}
     </nav>
@@ -82,7 +89,7 @@ export const SiteNav: React.FC<{ page: Page; theme: Theme; onTheme: (t: Theme) =
 );
 
 const LENDER_LINKS: Array<[Page, string, string[]]> = [
-  ["connect", "Connect your data", ["mappings:read"]], ["team", "Your team", ["team:manage"]], ["quality", "Data checks", ["quality:read"]],
+  ["customers", "Customers", ["signals:read"]], ["connect", "Connect your data", ["mappings:read"]], ["team", "Your team", ["team:manage"]], ["quality", "Data checks", ["quality:read"]],
   ["signals", "Risk signals", ["signals:read"]], ["seals", "Record seals", ["seals:read"]],
 ];
 
